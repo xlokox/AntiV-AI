@@ -1,0 +1,100 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+env/
+venv/
+ENV/
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+
+# Testing
+.pytest_cache/
+.coverage
+htmlcov/
+.tox/
+.hypothesis/
+
+# Logs
+*.log
+logs/
+*.log.*
+
+# Database files
+*.db
+*.db-journal
+*.sqlite
+*.sqlite3
+
+# Sensitive data
+data/
+backups/
+quarantine/
+uploads/
+certs/
+*.pem
+*.key
+*.crt
+.encryption_key
+
+# Environment variables
+.env
+.env.local
+.env.*.local
+
+# IDE
+.vscode/
+.idea/
+*.swp
+*.swo
+*~
+.DS_Store
+
+# Models (optional - uncomment if models are too large)
+# models/*.pkl
+# models/*.joblib
+
+# Node/Frontend
+frontend/node_modules/
+frontend/build/
+frontend/dist/
+frontend/.env.local
+frontend/.env.development.local
+frontend/.env.test.local
+frontend/.env.production.local
+frontend/npm-debug.log*
+frontend/yarn-debug.log*
+frontend/yarn-error.log*
+
+# Docker
+*.tar
+docker-compose.override.yml
+
+# Reports
+reports/
+compliance-check.log
+
+# OS
+.DS_Store
+Thumbs.db
+
+# Temporary files
+*.tmp
+*.temp
+tmp/
+temp/

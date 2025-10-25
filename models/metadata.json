@@ -1,0 +1,218 @@
+{
+  "20250725_205510": {
+    "behavioral_analysis": {
+      "algorithm": "RandomForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/Users/danielknafel/AntiV-AI/models/behavioral_analysis_20250725_205510.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "behavioral_analysis",
+      "notes": "Automated training session 20250725_205510",
+      "parameters": {
+        "max_depth": 10,
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "timestamp": "2025-07-25T20:55:10.268655",
+      "training_samples": 8,
+      "version": "20250725_205510"
+    },
+    "ensemble": {
+      "algorithm": "Ensemble",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/Users/danielknafel/AntiV-AI/models/ensemble_model_20250725_205510.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "ensemble",
+      "notes": "Automated training session 20250725_205510",
+      "parameters": {
+        "behavioral_weight": 0.4,
+        "isolation_weight": 0.3,
+        "static_weight": 0.3
+      },
+      "timestamp": "2025-07-25T20:55:10.269218",
+      "training_samples": 8,
+      "version": "20250725_205510"
+    },
+    "isolation_forest": {
+      "algorithm": "IsolationForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/Users/danielknafel/AntiV-AI/models/isolation_forest_20250725_205510.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 0.5,
+        "f1_score": 0.0,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "model_type": "isolation_forest",
+      "notes": "Automated training session 20250725_205510",
+      "parameters": {
+        "contamination": 0.1,
+        "random_state": 42
+      },
+      "timestamp": "2025-07-25T20:55:10.268988",
+      "training_samples": 8,
+      "version": "20250725_205510"
+    }
+  },
+  "20250725_210148": {
+    "behavioral_analysis": {
+      "algorithm": "RandomForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/Users/danielknafel/AntiV-AI/models/behavioral_analysis_20250725_210148.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "behavioral_analysis",
+      "notes": "Automated training session 20250725_210148",
+      "parameters": {
+        "max_depth": 10,
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "timestamp": "2025-07-25T21:01:49.065748",
+      "training_samples": 8,
+      "version": "20250725_210148"
+    },
+    "ensemble": {
+      "algorithm": "Ensemble",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/Users/danielknafel/AntiV-AI/models/ensemble_model_20250725_210148.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "ensemble",
+      "notes": "Automated training session 20250725_210148",
+      "parameters": {
+        "behavioral_weight": 0.4,
+        "isolation_weight": 0.3,
+        "static_weight": 0.3
+      },
+      "timestamp": "2025-07-25T21:01:49.066452",
+      "training_samples": 8,
+      "version": "20250725_210148"
+    },
+    "isolation_forest": {
+      "algorithm": "IsolationForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/Users/danielknafel/AntiV-AI/models/isolation_forest_20250725_210148.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 0.5,
+        "f1_score": 0.0,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "model_type": "isolation_forest",
+      "notes": "Automated training session 20250725_210148",
+      "parameters": {
+        "contamination": 0.1,
+        "random_state": 42
+      },
+      "timestamp": "2025-07-25T21:01:49.066140",
+      "training_samples": 8,
+      "version": "20250725_210148"
+    }
+  },
+  "20250725_214054": {
+    "behavioral_analysis": {
+      "algorithm": "RandomForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/Users/danielknafel/AntiV-AI/models/behavioral_analysis_20250725_214054.pkl",
+      "is_active": true,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "behavioral_analysis",
+      "notes": "Automated training session 20250725_214054",
+      "parameters": {
+        "max_depth": 10,
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "timestamp": "2025-07-25T21:40:55.142375",
+      "training_samples": 8,
+      "version": "20250725_214054"
+    },
+    "ensemble": {
+      "algorithm": "Ensemble",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/Users/danielknafel/AntiV-AI/models/ensemble_model_20250725_214054.pkl",
+      "is_active": true,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "ensemble",
+      "notes": "Automated training session 20250725_214054",
+      "parameters": {
+        "behavioral_weight": 0.4,
+        "isolation_weight": 0.3,
+        "static_weight": 0.3
+      },
+      "timestamp": "2025-07-25T21:40:55.143577",
+      "training_samples": 8,
+      "version": "20250725_214054"
+    },
+    "isolation_forest": {
+      "algorithm": "IsolationForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/Users/danielknafel/AntiV-AI/models/isolation_forest_20250725_214054.pkl",
+      "is_active": true,
+      "metrics": {
+        "accuracy": 0.5,
+        "f1_score": 0.0,
+        "precision": 0.0,
+        "recall": 0.0
+      },
+      "model_type": "isolation_forest",
+      "notes": "Automated training session 20250725_214054",
+      "parameters": {
+        "contamination": 0.1,
+        "random_state": 42
+      },
+      "timestamp": "2025-07-25T21:40:55.143027",
+      "training_samples": 8,
+      "version": "20250725_214054"
+    }
+  }
+}

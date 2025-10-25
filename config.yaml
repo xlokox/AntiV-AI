@@ -1,0 +1,421 @@
+# AntiV-AI Configuration File
+# Military-Grade Security Configuration
+
+# Application Settings
+app:
+  name: "AntiV-AI"
+  version: "1.0.0"
+  environment: "production"
+  debug: false
+  log_level: "INFO"
+
+# Security Settings
+security:
+  jwt:
+    secret_key: "${JWT_SECRET_KEY}"
+    access_token_expire_minutes: 30
+    refresh_token_expire_days: 7
+    algorithm: "HS256"
+  
+  password:
+    min_length: 12
+    require_uppercase: true
+    require_lowercase: true
+    require_numbers: true
+    require_special_chars: true
+    max_failed_attempts: 5
+    lockout_duration_minutes: 30
+  
+  mfa:
+    enabled: true
+    required_for_admin: true
+    backup_codes_count: 10
+    totp_window: 1
+
+# Rate Limiting Configuration
+rate_limits:
+  global:
+    requests_per_minute: 100
+    burst_threshold: 200
+    window_seconds: 300
+  
+  geo:
+    enabled: true
+    geoip_database_path: "data/GeoLite2-Country.mmdb"
+
+    # Country blocking and allowlisting
+    blocked_countries: ["CN", "RU", "KP", "IR", "SY", "AF"]
+    allowed_countries: ["US", "CA", "GB", "DE", "FR", "AU", "JP", "NL", "SE", "NO", "DK", "FI"]
+    high_risk_countries: ["PK", "BD", "NG", "ID", "VN", "IN", "BR", "MX"]
+
+    # Country-specific rate limits (requests per minute)
+    limits_by_country:
+      # Tier 1 - Trusted countries
+      US: 100
+      CA: 100
+      GB: 100
+      DE: 100
+      FR: 100
+      AU: 100
+      JP: 100
+      NL: 100
+      SE: 100
+      NO: 100
+      DK: 100
+      FI: 100
+
+      # Tier 2 - Standard countries
+      IT: 75
+      ES: 75
+      CH: 75
+      AT: 75
+      BE: 75
+
+      # Tier 3 - High risk countries
+      PK: 25
+      BD: 25
+      NG: 25
+      ID: 25
+      VN: 25
+      IN: 30
+      BR: 35
+      MX: 35
+
+      # Default limits
+      high_risk: 20
+      default: 50
+      unknown: 10
+
+    # Regional limits (fallback if country not specified)
+    limits_by_region:
+      "North America": 100
+      "Western Europe": 90
+      "Eastern Europe": 60
+      "Asia Pacific": 50
+      "Middle East": 30
+      "Africa": 25
+      "South America": 40
+      "Unknown": 10
+  
+  endpoints:
+    "/auth/login":
+      requests_per_minute: 10
+      burst_threshold: 15
+    "/auth/mfa/verify":
+      requests_per_minute: 5
+      burst_threshold: 10
+    "/upload-scan":
+      requests_per_minute: 5
+      burst_threshold: 8
+    "/scan":
+      requests_per_minute: 20
+      burst_threshold: 30
+    "/security/":
+      requests_per_minute: 30
+      burst_threshold: 50
+  
+  ip_reputation:
+    enabled: true
+    high_risk_threshold: 0.7
+    medium_risk_threshold: 0.4
+    low_risk_threshold: 0.2
+    
+    # Limits based on reputation
+    limits_by_reputation:
+      high_risk: 5      # Very restrictive
+      medium_risk: 25   # Moderately restrictive
+      low_risk: 75      # Slightly restrictive
+      clean: 100        # Normal limits
+
+# DDoS Protection
+ddos_protection:
+  enabled: true
+  adaptive_limits: true
+  pattern_detection: true
+  
+  attack_patterns:
+    endpoint_flooding_threshold: 50
+    bot_behavior_threshold: 30
+    burst_attack_threshold: 100
+  
+  blocking:
+    temporary_block_duration: 3600  # 1 hour
+    permanent_block_enabled: true
+    escalation_enabled: true
+
+# Threat Intelligence
+threat_intelligence:
+  enabled: true
+  cache_ttl_hours: 24
+  max_cache_entries: 10000
+  
+  sources:
+    virustotal:
+      enabled: true
+      api_key: "${VIRUSTOTAL_API_KEY}"
+      rate_limit_delay: 15
+    
+    alienvault:
+      enabled: true
+      api_key: "${ALIENVAULT_API_KEY}"
+      rate_limit_delay: 1
+    
+    malwarebazaar:
+      enabled: true
+      api_key: "${MALWAREBAZAAR_API_KEY}"
+      rate_limit_delay: 1
+  
+  scoring:
+    static_analysis_weight: 0.4
+    threat_intel_weight: 0.3
+    ml_analysis_weight: 0.3
+
+# Machine Learning
+machine_learning:
+  enabled: true
+  model_dir: "models"
+
+  # Training configuration
+  training:
+    data_dir: "data/training"
+    test_split: 0.2
+    random_state: 42
+    min_samples: 100
+    retrain_threshold: 1000
+
+    # Performance thresholds for CI/CD
+    thresholds:
+      min_accuracy: 0.85
+      min_precision: 0.80
+      min_recall: 0.80
+      min_f1_score: 0.80
+      min_roc_auc: 0.85
+
+    # Retraining schedule
+    schedule:
+      enabled: true
+      frequency: "daily"  # daily, weekly, monthly
+      time: "02:00"       # 2 AM UTC
+      auto_deploy: false  # Require manual approval
+
+  models:
+    behavioral_analysis:
+      enabled: true
+      model_file: "behavioral_analysis.pkl"
+      algorithm: "RandomForest"
+      parameters:
+        n_estimators: 100
+        max_depth: 10
+        random_state: 42
+
+    isolation_forest:
+      enabled: true
+      model_file: "isolation_forest.pkl"
+      algorithm: "IsolationForest"
+      parameters:
+        contamination: 0.1
+        random_state: 42
+
+    ensemble:
+      enabled: true
+      model_file: "ensemble_model.pkl"
+      behavioral_weight: 0.4
+      isolation_weight: 0.3
+      static_weight: 0.3
+
+  # Feature configuration
+  features:
+    count: 15
+    names: [
+      "file_size", "entropy", "pe_sections", "imported_functions",
+      "exported_functions", "string_entropy", "suspicious_strings",
+      "api_calls", "network_indicators", "file_operations",
+      "registry_operations", "process_operations", "crypto_indicators",
+      "packer_indicators", "obfuscation_score"
+    ]
+    scaling: "standard"  # standard, minmax, robust
+
+# Database Configuration
+database:
+  encryption:
+    enabled: true
+    key_rotation_days: 30
+    field_level_encryption: true
+  
+  backup:
+    enabled: true
+    interval_hours: 6
+    retention_days: 30
+    compression: true
+    encryption: true
+
+# SIEM Integration
+siem:
+  enabled: true
+  endpoint: "${SIEM_ENDPOINT}"
+  api_key: "${SIEM_API_KEY}"
+  
+  batching:
+    batch_size: 50
+    batch_timeout_seconds: 30
+    retry_attempts: 3
+    retry_delay_seconds: 5
+  
+  events:
+    authentication: true
+    file_scans: true
+    alerts: true
+    ddos_events: true
+    admin_actions: true
+
+# Blockchain Audit
+blockchain_audit:
+  enabled: true
+  ledger_file: "data/audit_ledger.json"
+  block_size_limit: 1000
+  hash_algorithm: "sha256"
+  
+  verification:
+    auto_verify: true
+    verify_interval_hours: 24
+    store_verification_results: true
+
+# Monitoring & Alerting
+monitoring:
+  enabled: true
+  metrics_enabled: true
+  health_checks: true
+  
+  prometheus:
+    enabled: true
+    port: 9090
+    metrics_path: "/metrics"
+  
+  alerts:
+    high_risk_threshold: 0.8
+    critical_risk_threshold: 0.9
+    failed_login_threshold: 5
+    rate_limit_threshold: 10
+
+# Notifications
+notifications:
+  slack:
+    enabled: true
+    webhook_url: "${SLACK_WEBHOOK_URL}"
+    channel: "#security-alerts"
+    
+    triggers:
+      high_risk_scans: true
+      critical_alerts: true
+      authentication_failures: true
+      ddos_attacks: true
+      blockchain_integrity_failures: true
+  
+  email:
+    enabled: false
+    smtp_server: "${SMTP_SERVER}"
+    smtp_port: 587
+    username: "${SMTP_USERNAME}"
+    password: "${SMTP_PASSWORD}"
+    
+    recipients:
+      - "security@company.com"
+      - "admin@company.com"
+
+# File Upload Security
+upload_security:
+  max_file_size_mb: 50
+  rate_limit_per_minute: 5
+  
+  allowed_types:
+    - "application/x-executable"
+    - "application/x-msdos-program"
+    - "application/zip"
+    - "application/x-rar-compressed"
+    - "application/pdf"
+    - "text/plain"
+  
+  blocked_extensions:
+    - ".scr"
+    - ".pif"
+    - ".com"
+    - ".cpl"
+    - ".hta"
+    - ".jar"
+    - ".vbs"
+    - ".ps1"
+  
+  validation:
+    magic_byte_check: true
+    signature_verification: true
+    content_scanning: true
+
+# Quarantine System
+quarantine:
+  enabled: true
+  quarantine_dir: "quarantine"
+  auto_quarantine_threshold: 0.8
+  retention_days: 90
+  
+  encryption:
+    enabled: true
+    algorithm: "AES-256-GCM"
+
+# Sandbox Analysis
+sandbox:
+  enabled: true
+  timeout_seconds: 300
+  memory_limit_mb: 512
+  network_isolation: true
+  
+  analysis:
+    behavioral_monitoring: true
+    api_call_tracking: true
+    file_system_monitoring: true
+    network_monitoring: true
+
+# Performance Optimization
+performance:
+  caching:
+    enabled: true
+    redis_url: "${REDIS_URL}"
+    default_ttl_seconds: 3600
+    
+    cache_types:
+      threat_intelligence: true
+      file_analysis: true
+      user_sessions: true
+  
+  parallel_processing:
+    enabled: true
+    max_workers: 4
+    thread_pool_size: 8
+
+# Compliance
+compliance:
+  frameworks:
+    nist_csf: true
+    iso_27001: true
+    gdpr: true
+  
+  audit_logging:
+    enabled: true
+    retention_days: 365
+    encryption: true
+  
+  data_protection:
+    anonymization: true
+    right_to_erasure: true
+    data_export: true
+
+# Development & Testing
+development:
+  debug_mode: false
+  test_mode: false
+  mock_external_apis: false
+  
+  testing:
+    unit_tests: true
+    integration_tests: true
+    security_tests: true
+    performance_tests: true

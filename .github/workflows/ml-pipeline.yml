@@ -1,0 +1,495 @@
+name: ML Training and Evaluation Pipeline
+
+on:
+  push:
+    branches: [ main, develop ]
+    paths:
+      - 'scripts/train_models.py'
+      - 'src/ml_*.py'
+      - 'data/training/**'
+      - 'config.yaml'
+  pull_request:
+    branches: [ main, develop ]
+    paths:
+      - 'scripts/train_models.py'
+      - 'src/ml_*.py'
+      - 'data/training/**'
+      - 'config.yaml'
+  schedule:
+    # Run daily at 3 AM UTC for automated retraining
+    - cron: '0 3 * * *'
+  workflow_dispatch:
+    inputs:
+      force_retrain:
+        description: 'Force model retraining even if no changes'
+        required: false
+        default: 'false'
+        type: boolean
+      evaluation_only:
+        description: 'Run evaluation only (skip training)'
+        required: false
+        default: 'false'
+        type: boolean
+
+env:
+  PYTHON_VERSION: '3.9'
+  ML_DATA_PATH: 'data/training'
+  MODELS_PATH: 'models'
+  REPORTS_PATH: 'reports'
+
+jobs:
+  setup:
+    runs-on: ubuntu-latest
+    outputs:
+      should_train: ${{ steps.check_changes.outputs.should_train }}
+      has_training_data: ${{ steps.check_data.outputs.has_data }}
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+      with:
+        fetch-depth: 2  # Need previous commit for diff
+    
+    - name: Check for ML-related changes
+      id: check_changes
+      run: |
+        if [[ "${{ github.event_name }}" == "schedule" ]] || [[ "${{ inputs.force_retrain }}" == "true" ]]; then
+          echo "should_train=true" >> $GITHUB_OUTPUT
+          echo "Scheduled run or forced retraining"
+        elif [[ "${{ github.event_name }}" == "workflow_dispatch" ]] && [[ "${{ inputs.evaluation_only }}" == "true" ]]; then
+          echo "should_train=false" >> $GITHUB_OUTPUT
+          echo "Evaluation only requested"
+        else
+          # Check for changes in ML-related files
+          if git diff --name-only HEAD~1 HEAD | grep -E "(scripts/train_models\.py|src/ml_.*\.py|data/training/.*|config\.yaml)"; then
+            echo "should_train=true" >> $GITHUB_OUTPUT
+            echo "ML-related changes detected"
+          else
+            echo "should_train=false" >> $GITHUB_OUTPUT
+            echo "No ML-related changes detected"
+          fi
+        fi
+    
+    - name: Check training data availability
+      id: check_data
+      run: |
+        if [ -d "${{ env.ML_DATA_PATH }}" ] && [ "$(find ${{ env.ML_DATA_PATH }} -name '*.json' | wc -l)" -gt 0 ]; then
+          echo "has_data=true" >> $GITHUB_OUTPUT
+          echo "Training data found"
+        else
+          echo "has_data=false" >> $GITHUB_OUTPUT
+          echo "No training data found"
+        fi
+
+  ml-training:
+    runs-on: ubuntu-latest
+    needs: setup
+    if: needs.setup.outputs.should_train == 'true' && needs.setup.outputs.has_training_data == 'true'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        # Install additional ML dependencies
+        pip install scikit-learn pandas numpy matplotlib seaborn
+    
+    - name: Create necessary directories
+      run: |
+        mkdir -p ${{ env.MODELS_PATH }}
+        mkdir -p ${{ env.REPORTS_PATH }}
+        mkdir -p logs
+    
+    - name: Validate training data
+      run: |
+        echo "Validating training data structure..."
+        python -c "
+        import os
+        import json
+        from pathlib import Path
+        
+        data_dir = Path('${{ env.ML_DATA_PATH }}')
+        malware_dir = data_dir / 'malware'
+        benign_dir = data_dir / 'benign'
+        
+        malware_count = len(list(malware_dir.glob('*.json'))) if malware_dir.exists() else 0
+        benign_count = len(list(benign_dir.glob('*.json'))) if benign_dir.exists() else 0
+        
+        print(f'Malware samples: {malware_count}')
+        print(f'Benign samples: {benign_count}')
+        print(f'Total samples: {malware_count + benign_count}')
+        
+        if malware_count + benign_count < 10:
+            print('Warning: Very few training samples available')
+        "
+    
+    - name: Run ML training pipeline
+      run: |
+        echo "Starting ML training pipeline..."
+        python scripts/train_models.py --verbose
+      env:
+        PYTHONPATH: ${{ github.workspace }}/src
+    
+    - name: Validate trained models
+      run: |
+        echo "Validating trained models..."
+        python -c "
+        import os
+        from pathlib import Path
+        
+        models_dir = Path('${{ env.MODELS_PATH }}')
+        expected_models = [
+            'behavioral_analysis.pkl',
+            'isolation_forest.pkl', 
+            'ensemble_model.pkl',
+            'feature_scaler.pkl'
+        ]
+        
+        missing_models = []
+        for model in expected_models:
+            model_path = models_dir / model
+            if not model_path.exists():
+                missing_models.append(model)
+            else:
+                size = model_path.stat().st_size
+                print(f'{model}: {size} bytes')
+        
+        if missing_models:
+            print(f'Missing models: {missing_models}')
+            exit(1)
+        else:
+            print('All expected models found')
+        "
+    
+    - name: Upload trained models
+      uses: actions/upload-artifact@v3
+      with:
+        name: trained-models
+        path: |
+          ${{ env.MODELS_PATH }}/*.pkl
+          ${{ env.MODELS_PATH }}/metadata.json
+        retention-days: 30
+    
+    - name: Upload training logs
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: training-logs
+        path: |
+          logs/train_models.log
+          logs/train_metrics.log
+        retention-days: 7
+
+  ml-evaluation:
+    runs-on: ubuntu-latest
+    needs: [setup, ml-training]
+    if: always() && (needs.ml-training.result == 'success' || (needs.setup.outputs.has_training_data == 'true' && inputs.evaluation_only == 'true'))
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+        cache: 'pip'
+    
+    - name: Install dependencies
+      run: |
+        python -m pip install --upgrade pip
+        pip install -r requirements.txt
+        pip install scikit-learn pandas numpy matplotlib seaborn
+    
+    - name: Download trained models (if available)
+      if: needs.ml-training.result == 'success'
+      uses: actions/download-artifact@v3
+      with:
+        name: trained-models
+        path: ${{ env.MODELS_PATH }}
+    
+    - name: Create necessary directories
+      run: |
+        mkdir -p ${{ env.REPORTS_PATH }}
+        mkdir -p logs
+    
+    - name: Run ML evaluation
+      run: |
+        echo "Running ML model evaluation..."
+        python -c "
+        import sys
+        sys.path.append('src')
+        
+        from ml_evaluation import ml_evaluator
+        from scripts.train_models import MLTrainingPipeline
+        
+        # Load evaluation data
+        pipeline = MLTrainingPipeline()
+        X, y = pipeline.load_training_data()
+        
+        if len(X) == 0:
+            print('No evaluation data available')
+            exit(1)
+        
+        print(f'Evaluating with {len(X)} samples...')
+        
+        # Run evaluation
+        results = ml_evaluator.evaluate_all_models(X, y)
+        
+        # Generate report
+        report_file = ml_evaluator.generate_markdown_report()
+        print(f'Evaluation report generated: {report_file}')
+        
+        # Check if evaluation passed thresholds
+        summary = results.get('summary', {})
+        overall_status = summary.get('overall_status', 'unknown')
+        
+        print(f'Overall evaluation status: {overall_status}')
+        
+        if overall_status == 'failed':
+            print('ERROR: Model evaluation failed to meet thresholds')
+            exit(1)
+        elif overall_status == 'partial':
+            print('WARNING: Some models failed to meet thresholds')
+        else:
+            print('SUCCESS: All models passed evaluation thresholds')
+        "
+      env:
+        PYTHONPATH: ${{ github.workspace }}/src
+    
+    - name: Upload evaluation report
+      uses: actions/upload-artifact@v3
+      if: always()
+      with:
+        name: ml-evaluation-report
+        path: ${{ env.REPORTS_PATH }}/ml_evaluation.md
+        retention-days: 30
+    
+    - name: Comment PR with evaluation results
+      if: github.event_name == 'pull_request'
+      uses: actions/github-script@v6
+      with:
+        script: |
+          const fs = require('fs');
+          const path = require('path');
+          
+          try {
+            const reportPath = '${{ env.REPORTS_PATH }}/ml_evaluation.md';
+            
+            if (fs.existsSync(reportPath)) {
+              const reportContent = fs.readFileSync(reportPath, 'utf8');
+              
+              // Extract key metrics from report
+              const lines = reportContent.split('\n');
+              let summary = '';
+              let inSummary = false;
+              
+              for (const line of lines) {
+                if (line.includes('## Evaluation Summary')) {
+                  inSummary = true;
+                  continue;
+                }
+                if (inSummary && line.startsWith('##')) {
+                  break;
+                }
+                if (inSummary && line.trim()) {
+                  summary += line + '\n';
+                }
+              }
+              
+              const comment = `## 🤖 ML Model Evaluation Results
+              
+              ${summary}
+              
+              <details>
+              <summary>View Full Evaluation Report</summary>
+              
+              \`\`\`markdown
+              ${reportContent.slice(0, 3000)}${reportContent.length > 3000 ? '\n... (truncated)' : ''}
+              \`\`\`
+              
+              </details>
+              
+              📊 **Full report available in build artifacts**`;
+              
+              github.rest.issues.createComment({
+                issue_number: context.issue.number,
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                body: comment
+              });
+            }
+          } catch (error) {
+            console.log('Could not create PR comment:', error);
+          }
+
+  quality-checks:
+    runs-on: ubuntu-latest
+    needs: [ml-training, ml-evaluation]
+    if: always()
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Set up Python
+      uses: actions/setup-python@v4
+      with:
+        python-version: ${{ env.PYTHON_VERSION }}
+    
+    - name: Install code quality tools
+      run: |
+        pip install flake8 mypy black isort bandit
+    
+    - name: Run code quality checks on ML modules
+      run: |
+        echo "Running code quality checks..."
+        
+        # Check Python syntax and style
+        flake8 scripts/train_models.py src/ml_*.py --max-line-length=120 --extend-ignore=E203,W503 || true
+        
+        # Check type hints
+        mypy scripts/train_models.py src/ml_*.py --ignore-missing-imports || true
+        
+        # Check code formatting
+        black --check scripts/train_models.py src/ml_*.py || true
+        
+        # Check import sorting
+        isort --check-only scripts/train_models.py src/ml_*.py || true
+        
+        # Security check
+        bandit -r scripts/train_models.py src/ml_*.py || true
+
+  deployment-check:
+    runs-on: ubuntu-latest
+    needs: [ml-training, ml-evaluation]
+    if: needs.ml-evaluation.result == 'success' && github.ref == 'refs/heads/main'
+    
+    steps:
+    - name: Checkout code
+      uses: actions/checkout@v4
+    
+    - name: Download trained models
+      uses: actions/download-artifact@v3
+      with:
+        name: trained-models
+        path: ${{ env.MODELS_PATH }}
+    
+    - name: Download evaluation report
+      uses: actions/download-artifact@v3
+      with:
+        name: ml-evaluation-report
+        path: ${{ env.REPORTS_PATH }}
+    
+    - name: Check deployment readiness
+      run: |
+        echo "Checking deployment readiness..."
+        
+        # Verify all required files are present
+        required_files=(
+          "${{ env.MODELS_PATH }}/behavioral_analysis.pkl"
+          "${{ env.MODELS_PATH }}/isolation_forest.pkl"
+          "${{ env.MODELS_PATH }}/ensemble_model.pkl"
+          "${{ env.MODELS_PATH }}/feature_scaler.pkl"
+          "${{ env.MODELS_PATH }}/metadata.json"
+          "${{ env.REPORTS_PATH }}/ml_evaluation.md"
+        )
+        
+        missing_files=()
+        for file in "${required_files[@]}"; do
+          if [ ! -f "$file" ]; then
+            missing_files+=("$file")
+          fi
+        done
+        
+        if [ ${#missing_files[@]} -eq 0 ]; then
+          echo "✅ All required files present for deployment"
+        else
+          echo "❌ Missing files for deployment:"
+          printf '%s\n' "${missing_files[@]}"
+          exit 1
+        fi
+    
+    - name: Create deployment summary
+      run: |
+        echo "# ML Pipeline Deployment Summary" > deployment-summary.md
+        echo "" >> deployment-summary.md
+        echo "**Timestamp:** $(date -u)" >> deployment-summary.md
+        echo "**Commit:** ${{ github.sha }}" >> deployment-summary.md
+        echo "**Branch:** ${{ github.ref_name }}" >> deployment-summary.md
+        echo "" >> deployment-summary.md
+        echo "## Artifacts Generated" >> deployment-summary.md
+        echo "" >> deployment-summary.md
+        echo "- ✅ Trained ML models" >> deployment-summary.md
+        echo "- ✅ Model metadata" >> deployment-summary.md
+        echo "- ✅ Evaluation report" >> deployment-summary.md
+        echo "- ✅ Training logs" >> deployment-summary.md
+        echo "" >> deployment-summary.md
+        echo "## Next Steps" >> deployment-summary.md
+        echo "" >> deployment-summary.md
+        echo "1. Review evaluation report for model performance" >> deployment-summary.md
+        echo "2. Deploy models to production environment" >> deployment-summary.md
+        echo "3. Monitor model performance in production" >> deployment-summary.md
+        echo "4. Schedule next retraining cycle" >> deployment-summary.md
+    
+    - name: Upload deployment summary
+      uses: actions/upload-artifact@v3
+      with:
+        name: deployment-summary
+        path: deployment-summary.md
+        retention-days: 90
+
+  notification:
+    runs-on: ubuntu-latest
+    needs: [ml-training, ml-evaluation, deployment-check]
+    if: always()
+    
+    steps:
+    - name: Determine overall status
+      id: status
+      run: |
+        training_status="${{ needs.ml-training.result }}"
+        evaluation_status="${{ needs.ml-evaluation.result }}"
+        deployment_status="${{ needs.deployment-check.result }}"
+        
+        if [[ "$training_status" == "success" && "$evaluation_status" == "success" ]]; then
+          echo "status=success" >> $GITHUB_OUTPUT
+          echo "message=ML pipeline completed successfully" >> $GITHUB_OUTPUT
+        elif [[ "$evaluation_status" == "failure" ]]; then
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "message=ML evaluation failed - models do not meet quality thresholds" >> $GITHUB_OUTPUT
+        elif [[ "$training_status" == "failure" ]]; then
+          echo "status=failure" >> $GITHUB_OUTPUT
+          echo "message=ML training failed" >> $GITHUB_OUTPUT
+        else
+          echo "status=partial" >> $GITHUB_OUTPUT
+          echo "message=ML pipeline completed with warnings" >> $GITHUB_OUTPUT
+        fi
+    
+    - name: Create status summary
+      run: |
+        echo "## 🤖 ML Pipeline Status: ${{ steps.status.outputs.status }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "${{ steps.status.outputs.message }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Job Results" >> $GITHUB_STEP_SUMMARY
+        echo "- **Training:** ${{ needs.ml-training.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Evaluation:** ${{ needs.ml-evaluation.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "- **Deployment Check:** ${{ needs.deployment-check.result }}" >> $GITHUB_STEP_SUMMARY
+        echo "" >> $GITHUB_STEP_SUMMARY
+        echo "### Artifacts" >> $GITHUB_STEP_SUMMARY
+        echo "- 📦 Trained models" >> $GITHUB_STEP_SUMMARY
+        echo "- 📊 Evaluation report" >> $GITHUB_STEP_SUMMARY
+        echo "- 📝 Training logs" >> $GITHUB_STEP_SUMMARY
+        if [[ "${{ needs.deployment-check.result }}" == "success" ]]; then
+          echo "- 🚀 Deployment summary" >> $GITHUB_STEP_SUMMARY
+        fi
