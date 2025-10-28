@@ -76,7 +76,7 @@ Examples:
         """
     )
     
-    parser.add_argument('--file', type=str, help='Scan a specific file')
+    parser.add_argument('--file', type=str, help='Scan a specific file') 
     parser.add_argument('--directory', type=str, help='Scan a directory')
     parser.add_argument('--recursive', action='store_true', help='Scan directory recursively')
     parser.add_argument('--stats', action='store_true', help='Show system statistics')

@@ -142,7 +142,7 @@ def test_upload_security():
 def test_rate_limiting():
     """Test rate limiting functionality"""
     print("\n⏱️  Testing Rate Limiting...")
-    print("-" * 50)
+    print("-" * 60)
     
     base_url = "http://localhost:8000"
     
