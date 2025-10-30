@@ -227,7 +227,7 @@ curl -X POST "http://127.0.0.1:8000/scan" \
 
 ### Get Scan History
 ```bash
-curl -X GET "http://127.0.0.1:8000/history?limit=10" \
+curl -X GET "http://127.0.0.1:8000/history?limit=100" \
   -H "Authorization: Bearer <token>"
 ```
 

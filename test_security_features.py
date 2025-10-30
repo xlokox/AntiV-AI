@@ -147,7 +147,7 @@ def test_rate_limiting():
     base_url = "http://localhost:8000"
     
     try:
-        # Test rapid requests to trigger rate limiting
+        # Test rapid requests to trigg  rate limiting
         print("   🔄 Sending rapid requests...")
         
         success_count = 0
