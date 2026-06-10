@@ -5,6 +5,7 @@ Provides REST API endpoints for the antivirus system
 
 import os
 import sys
+import json          # used by the MFA endpoints (backup codes) — was missing, causing 500s
 import tempfile
 import shutil
 import sqlite3
@@ -14,7 +15,11 @@ from datetime import datetime
 from typing import List, Dict, Optional
 from pathlib import Path
 
-from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Depends, Request
+import yaml          # used by the ML retraining scheduler to read config.yaml — was missing
+
+# `status` provides HTTP status constants used across the auth endpoints; it was
+# previously not imported, so any code path touching status.HTTP_* raised NameError.
+from fastapi import FastAPI, File, UploadFile, HTTPException, BackgroundTasks, Depends, Request, status
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 from fastapi.responses import FileResponse, JSONResponse
@@ -24,6 +29,43 @@ import uvicorn
 
 # Add src directory to path for imports
 sys.path.insert(0, os.path.dirname(__file__))
+
+# Repository root, used to build absolute paths (e.g. for the ML evaluation report).
+# Previously referenced as PROJECT_ROOT without being defined, causing a NameError.
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
+
+# Directories that the path-based /scan and /scan/multiple endpoints may read from.
+# This stops an authenticated user from turning the scanner into an arbitrary-file
+# oracle over the host filesystem (e.g. /etc/passwd, ~/.ssh/id_rsa). Override with
+# the SCAN_ALLOWED_DIRS env var (os.pathsep-separated absolute paths).
+_DEFAULT_SCAN_DIRS = [
+    str(PROJECT_ROOT / "uploads"),
+    str(PROJECT_ROOT / "quarantine"),
+    str(PROJECT_ROOT / "test_files"),
+    str(Path(tempfile.gettempdir())),
+]
+SCAN_ALLOWED_DIRS = [
+    os.path.realpath(p) for p in (
+        os.environ["SCAN_ALLOWED_DIRS"].split(os.pathsep)
+        if os.environ.get("SCAN_ALLOWED_DIRS") else _DEFAULT_SCAN_DIRS
+    )
+]
+
+
+def _ensure_path_allowed(file_path: str) -> str:
+    """Resolve `file_path` and require it to live inside an allowlisted directory.
+
+    os.path.realpath canonicalises the path (collapsing ``..`` and following
+    symlinks), defeating traversal tricks like ``uploads/../../etc/passwd``.
+    Returns the safe real path, or raises HTTP 400 if it escapes the allowlist.
+    """
+    real = os.path.realpath(file_path)
+    for base in SCAN_ALLOWED_DIRS:
+        # Exact match or a true subpath (the os.sep guard prevents '/data-evil'
+        # from matching an allowed '/data' prefix).
+        if real == base or real.startswith(base + os.sep):
+            return real
+    raise HTTPException(status_code=400, detail="file_path is outside the allowed scan directories")
 
 # Setup logging
 logging.basicConfig(level=logging.INFO)
@@ -56,13 +98,19 @@ try:
 except ImportError:
     SCHEDULER_AVAILABLE = False
 
-# Initialize FastAPI app
+# Initialize FastAPI app.
+# Interactive docs (/docs, /openapi.json) expose the entire endpoint surface and
+# request/response schemas, which is useful in development but is reconnaissance
+# fuel in production. They are enabled only outside production; set
+# ANTIV_ENV=production (or ENVIRONMENT=production) to turn them off.
+_DOCS_ENABLED = os.getenv("ANTIV_ENV", os.getenv("ENVIRONMENT", "development")).strip().lower() not in ("production", "prod")
 app = FastAPI(
     title="AntiV-AI API",
     description="Secure AI-Powered Antivirus System REST API",
     version="1.0.0",
-    docs_url="/docs",  # Keep docs for development
-    redoc_url=None,    # Disable redoc
+    docs_url="/docs" if _DOCS_ENABLED else None,        # disabled in production
+    redoc_url=None,                                       # redoc always off
+    openapi_url="/openapi.json" if _DOCS_ENABLED else None,
 )
 
 # Global variables for ML training
@@ -485,7 +533,9 @@ async def login(request: Request, login_data: LoginRequest):
 async def refresh_token(refresh_data: RefreshRequest):
     """Refresh access token using refresh token"""
     try:
-        token_data = auth_manager.verify_token(refresh_data.refresh_token)
+        # Enforce that this is genuinely a REFRESH token (not an access token being
+        # replayed here), via the type claim now checked inside verify_token.
+        token_data = auth_manager.verify_token(refresh_data.refresh_token, expected_type='refresh')
         if not token_data or token_data.exp < datetime.utcnow().timestamp():
             raise HTTPException(
                 status_code=status.HTTP_401_UNAUTHORIZED,
@@ -1036,13 +1086,20 @@ async def scan_multiple_files(
         if len(file_paths) > 50:  # Limit batch size
             raise HTTPException(status_code=400, detail="Too many files (max 50)")
 
-        # Validate file paths
+        # Validate file paths: each must resolve INSIDE the allowlist AND exist.
+        # Paths outside the allowlist are skipped silently (not echoed back) so we
+        # do not leak host filesystem structure to the caller.
         valid_paths = []
         for file_path in file_paths:
-            if os.path.exists(file_path):
-                valid_paths.append(file_path)
+            try:
+                safe_path = _ensure_path_allowed(file_path)
+            except HTTPException:
+                logging.warning("Rejected batch-scan path outside the allowlist")
+                continue
+            if os.path.exists(safe_path):
+                valid_paths.append(safe_path)
             else:
-                logging.warning(f"File not found: {file_path}")
+                logging.warning("Batch-scan path not found in allowed directories")
 
         if not valid_paths:
             raise HTTPException(status_code=400, detail="No valid file paths found")
@@ -1427,8 +1484,11 @@ async def scan_file(
     Scan a file by file path
     """
     try:
-        file_path = scan_request.file_path
-        
+        # Constrain to the allowlisted scan directories. This prevents an
+        # authenticated user from probing arbitrary host files (existence + hash +
+        # entropy oracle). Raises HTTP 400 on traversal / escape.
+        file_path = _ensure_path_allowed(scan_request.file_path)
+
         if not os.path.exists(file_path):
             raise HTTPException(status_code=404, detail="File not found")
         
@@ -1616,8 +1676,9 @@ async def stop_monitoring(current_user: TokenData = Depends(auth_manager.require
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/monitoring/events")
-async def get_monitoring_events(event_type: str = "all", limit: int = 100):
-    """Get recent monitoring events"""
+async def get_monitoring_events(event_type: str = "all", limit: int = 100,
+                                current_user: TokenData = Depends(auth_manager.get_current_user)):
+    """Get recent monitoring events (authentication required)"""
     try:
         events = antiv_engine.get_monitoring_events(event_type, limit)
         return {"events": events, "count": len(events)}
@@ -1625,8 +1686,8 @@ async def get_monitoring_events(event_type: str = "all", limit: int = 100):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/monitoring/process-tree")
-async def get_process_tree():
-    """Get current process tree"""
+async def get_process_tree(current_user: TokenData = Depends(auth_manager.require_role('admin'))):
+    """Get the current host process tree (admin only — exposes host internals)"""
     try:
         tree = antiv_engine.get_process_tree()
         return {"process_tree": tree}
@@ -1634,8 +1695,8 @@ async def get_process_tree():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/monitoring/status")
-async def get_monitoring_status():
-    """Get monitoring system status"""
+async def get_monitoring_status(current_user: TokenData = Depends(auth_manager.get_current_user)):
+    """Get monitoring system status (authentication required)"""
     try:
         stats = antiv_engine.get_comprehensive_statistics()
         return stats.get('monitoring', {})
@@ -1645,8 +1706,8 @@ async def get_monitoring_status():
 # Quarantine Management Endpoints
 
 @app.get("/quarantine/list")
-async def list_quarantined_files():
-    """List all quarantined files"""
+async def list_quarantined_files(current_user: TokenData = Depends(auth_manager.get_current_user)):
+    """List all quarantined files (authentication required)"""
     try:
         files = antiv_engine.get_quarantined_files()
         return {"quarantined_files": files, "count": len(files)}
@@ -1654,8 +1715,11 @@ async def list_quarantined_files():
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.post("/quarantine/restore/{quarantine_id}")
-async def restore_quarantined_file(quarantine_id: str, restore_path: Optional[str] = None):
-    """Restore a quarantined file"""
+async def restore_quarantined_file(quarantine_id: str, restore_path: Optional[str] = None,
+                                   current_user: TokenData = Depends(auth_manager.require_role('admin'))):
+    """Restore a quarantined file (admin only). The restore path is additionally
+    constrained to a safe directory inside the quarantine layer to prevent
+    arbitrary file writes."""
     try:
         success = antiv_engine.restore_quarantined_file(quarantine_id, restore_path)
         return {"success": success, "message": "File restored" if success else "Failed to restore file"}
@@ -1663,8 +1727,9 @@ async def restore_quarantined_file(quarantine_id: str, restore_path: Optional[st
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.delete("/quarantine/delete/{quarantine_id}")
-async def delete_quarantined_file(quarantine_id: str):
-    """Permanently delete a quarantined file"""
+async def delete_quarantined_file(quarantine_id: str,
+                                  current_user: TokenData = Depends(auth_manager.require_role('admin'))):
+    """Permanently delete a quarantined file (admin only)"""
     try:
         success = antiv_engine.delete_quarantined_file(quarantine_id)
         return {"success": success, "message": "File deleted" if success else "Failed to delete file"}
@@ -1672,8 +1737,8 @@ async def delete_quarantined_file(quarantine_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/quarantine/stats")
-async def get_quarantine_stats():
-    """Get quarantine statistics"""
+async def get_quarantine_stats(current_user: TokenData = Depends(auth_manager.get_current_user)):
+    """Get quarantine statistics (authentication required)"""
     try:
         stats = antiv_engine.get_comprehensive_statistics()
         return stats.get('quarantine', {})
@@ -1683,17 +1748,28 @@ async def get_quarantine_stats():
 # Sandbox Execution Endpoints
 
 @app.post("/sandbox/execute")
-async def execute_in_sandbox(file_path: str, file_hash: str):
-    """Execute file in sandbox environment"""
+async def execute_in_sandbox(file_path: str, file_hash: str,
+                             current_user: TokenData = Depends(auth_manager.require_role('admin'))):
+    """Execute a file in the isolated sandbox (admin only)."""
     try:
+        # Only sandbox files inside the allowlisted directories — never an arbitrary
+        # host path supplied by the caller.
+        file_path = _ensure_path_allowed(file_path)
         execution = antiv_engine.execute_in_sandbox(file_path, file_hash)
+        if execution is None:
+            # Fail closed and loud when the sandbox backend (Docker) is unavailable,
+            # instead of returning HTTP 200 with {"execution": null}.
+            raise HTTPException(status_code=503, detail="Sandbox unavailable (Docker not running)")
         return {"execution": execution}
+    except HTTPException:
+        raise
     except Exception as e:
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/sandbox/executions")
-async def list_sandbox_executions(limit: int = 50):
-    """List recent sandbox executions"""
+async def list_sandbox_executions(limit: int = 50,
+                                  current_user: TokenData = Depends(auth_manager.get_current_user)):
+    """List recent sandbox executions (authentication required)"""
     try:
         executions = antiv_engine.get_sandbox_executions(limit)
         return {"executions": executions, "count": len(executions)}
@@ -1701,8 +1777,9 @@ async def list_sandbox_executions(limit: int = 50):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/sandbox/execution/{execution_id}")
-async def get_sandbox_execution_status(execution_id: str):
-    """Get status of sandbox execution"""
+async def get_sandbox_execution_status(execution_id: str,
+                                       current_user: TokenData = Depends(auth_manager.get_current_user)):
+    """Get status of a sandbox execution (authentication required)"""
     try:
         execution = antiv_engine.get_sandbox_execution_status(execution_id)
         if not execution:
@@ -1714,8 +1791,8 @@ async def get_sandbox_execution_status(execution_id: str):
         raise HTTPException(status_code=500, detail=str(e))
 
 @app.get("/sandbox/stats")
-async def get_sandbox_stats():
-    """Get sandbox statistics"""
+async def get_sandbox_stats(current_user: TokenData = Depends(auth_manager.get_current_user)):
+    """Get sandbox statistics (authentication required)"""
     try:
         stats = antiv_engine.get_comprehensive_statistics()
         return stats.get('sandbox', {})
@@ -1725,8 +1802,8 @@ async def get_sandbox_stats():
 # Comprehensive System Status
 
 @app.get("/system/status")
-async def get_system_status():
-    """Get comprehensive system status"""
+async def get_system_status(current_user: TokenData = Depends(auth_manager.require_role('admin'))):
+    """Get comprehensive system status (admin only — aggregates host internals)"""
     try:
         stats = antiv_engine.get_comprehensive_statistics()
         return stats

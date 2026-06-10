@@ -11,7 +11,9 @@ import json
 import logging
 from datetime import datetime
 from typing import Dict, Optional, Tuple
-import random
+# NOTE: `random` was previously imported to fabricate a fake "ML" score here.
+# It has been removed: the static risk score is now fully deterministic and the
+# real ML signal comes from the EMBER-trained model in src/ml/detector.py.
 
 # Import PE analysis library for Windows
 try:
@@ -212,40 +214,17 @@ class FileAnalyzer:
         if any(file_path.lower().endswith(ext) for ext in suspicious_extensions):
             risk_score += 0.1
         
-        # ML model placeholder (simulate with random component for now)
-        ml_score = self.simulate_ml_inference(file_metadata)
-        risk_score += ml_score * 0.3
-        
-        # Cap the risk score at 1.0
+        # IMPORTANT: No ML term is added to the static score here. This score is
+        # now a PURELY DETERMINISTIC heuristic (entropy + PE suspicious indicators
+        # + file size + extension), so the same file always yields the same score.
+        # The real machine-learning signal is produced independently by the
+        # EMBER-trained gradient-boosted model (src/ml/detector.py) and fused with
+        # this static score inside the engine (src/antiv_engine.py). The previous
+        # implementation added `random.uniform(-0.2, 0.2)` here, which made risk
+        # scores non-reproducible and was not machine learning at all.
+
+        # Cap the risk score at 1.0 so it stays a clean 0.0-1.0 probability-like value.
         return min(risk_score, 1.0)
-    
-    def simulate_ml_inference(self, file_metadata: Dict) -> float:
-        """
-        Placeholder for ML model inference
-        Currently returns a simulated score based on basic heuristics
-        
-        Args:
-            file_metadata: File analysis results
-            
-        Returns:
-            Simulated ML confidence score (0.0-1.0)
-        """
-        # Simulate ML model with some basic logic + randomness
-        base_score = 0.0
-        
-        # Higher entropy files get higher ML scores
-        entropy = file_metadata.get('entropy', 0.0)
-        base_score += entropy * 0.5
-        
-        # PE files with suspicious indicators get higher scores
-        pe_analysis = file_metadata.get('pe_analysis', {})
-        if pe_analysis.get('suspicious_indicators'):
-            base_score += 0.3
-        
-        # Add some randomness to simulate ML uncertainty
-        random_component = random.uniform(-0.2, 0.2)
-        
-        return max(0.0, min(1.0, base_score + random_component))
 
     def analyze_file(self, file_path: str) -> Dict:
         """

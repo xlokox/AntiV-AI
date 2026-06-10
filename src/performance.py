@@ -13,7 +13,8 @@ from typing import Dict, List, Optional, Any, Callable, Union
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from dataclasses import dataclass, asdict
 from datetime import datetime, timedelta
-import pickle
+# NOTE: `pickle` was removed — cache values are now (de)serialized with JSON so a
+# poisoned/shared Redis cannot achieve code execution via pickle deserialization.
 
 # Redis dependencies (optional)
 try:
@@ -140,7 +141,9 @@ class RedisCache:
                 if value is not None:
                     self.metrics.cache_hits += 1
                     self._update_response_time(time.time() - start_time)
-                    return pickle.loads(value.encode('latin1'))
+                    # JSON, not pickle: a poisoned/shared Redis value must never be
+                    # able to execute code on deserialization (pickle would).
+                    return json.loads(value)
             
             # Fallback to memory cache
             if key in self.memory_cache:
@@ -180,7 +183,9 @@ class RedisCache:
                 if value is not None:
                     self.metrics.cache_hits += 1
                     self._update_response_time(time.time() - start_time)
-                    return pickle.loads(value.encode('latin1'))
+                    # JSON, not pickle: a poisoned/shared Redis value must never be
+                    # able to execute code on deserialization (pickle would).
+                    return json.loads(value)
             
             # Fallback to synchronous get
             return self.get(key)
@@ -195,7 +200,7 @@ class RedisCache:
             ttl = self.default_ttl
         
         try:
-            serialized_value = pickle.dumps(value).decode('latin1')
+            serialized_value = json.dumps(value, default=str)  # safe serialization (no pickle/code-exec)
             
             if self.redis_client:
                 # Set in Redis
@@ -221,7 +226,7 @@ class RedisCache:
                 await self._init_async_redis()
             
             if self.async_redis_client:
-                serialized_value = pickle.dumps(value).decode('latin1')
+                serialized_value = json.dumps(value, default=str)  # safe serialization (no pickle/code-exec)
                 await self.async_redis_client.setex(key, ttl, serialized_value)
                 return True
             else:

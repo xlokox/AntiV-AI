@@ -68,6 +68,12 @@ certs/
 # Models (optional - uncomment if models are too large)
 # models/*.pkl
 # models/*.joblib
+# The EMBER-trained model is a ~56MB build artifact, reproducible via
+# scripts/train_ember.py. Ignore the binary but KEEP the small model card and
+# metrics JSON so the measured results stay visible in the repo.
+models/ember/*.joblib
+# The EMBER-2018 dataset (~10GB) is downloaded locally, never committed.
+data/ember/
 
 # Node/Frontend
 frontend/node_modules/

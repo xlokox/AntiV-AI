@@ -271,11 +271,27 @@ class QuarantineManager:
                 self.logger.warning(f"File already restored: {quarantine_id}")
                 return False
             
-            # Determine restore path
+            # Determine restore path, CONSTRAINED to a dedicated safe directory.
+            # Restoring un-obfuscates the stored sample and writes its original
+            # bytes; allowing an arbitrary destination is an arbitrary-file-write
+            # (→ RCE) primitive. We therefore force every restore to land inside a
+            # controlled root (override with QUARANTINE_RESTORE_DIR) and reject any
+            # path — including a malicious original_path — that escapes it. An admin
+            # can move the file deliberately afterwards.
+            restore_root = os.path.realpath(
+                os.environ.get("QUARANTINE_RESTORE_DIR", os.path.join(os.getcwd(), "restored"))
+            )
+            os.makedirs(restore_root, exist_ok=True)
             if restore_path is None:
-                restore_path = entry.original_path
-            
-            # Ensure restore directory exists
+                # Default destination: the safe root, keeping only the base filename.
+                restore_path = os.path.join(restore_root, os.path.basename(entry.original_path or "restored_file"))
+            real_restore = os.path.realpath(restore_path)   # collapse ../ and symlinks
+            if not (real_restore == restore_root or real_restore.startswith(restore_root + os.sep)):
+                self.logger.error(f"Refusing to restore outside the safe root: {real_restore}")
+                return False
+            restore_path = real_restore
+
+            # Ensure the (now-validated) restore directory exists
             os.makedirs(os.path.dirname(restore_path), exist_ok=True)
             
             # Read and deobfuscate quarantined file

@@ -334,21 +334,46 @@ class AdvancedRateLimiter:
         self.attack_patterns = defaultdict(list)
         
     def _get_client_ip(self, request: Request) -> str:
-        """Extract client IP from request"""
-        # Check for forwarded headers (if behind proxy)
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
-        
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip
-        
-        # Fallback to direct connection
-        if request.client:
-            return request.client.host
-        
-        return "unknown"
+        """Return the client IP, resisting X-Forwarded-For spoofing.
+
+        Identical trust model to RateLimiter._get_client_ip: forwarding headers are
+        honored ONLY when the direct peer is a configured trusted proxy (env
+        TRUSTED_PROXIES). Otherwise a client could spoof X-Forwarded-For to dodge the
+        DDoS/rate-limit accounting that keys entirely on this address. Default uses
+        the real socket peer.
+        """
+        import os
+        import ipaddress
+        peer = request.client.host if request.client else "unknown"
+
+        trusted = []
+        for token in os.environ.get("TRUSTED_PROXIES", "").split(","):
+            token = token.strip()
+            if not token:
+                continue
+            try:
+                trusted.append(ipaddress.ip_network(token, strict=False))
+            except ValueError:
+                continue
+
+        def _is_trusted(ip_str: str) -> bool:
+            try:
+                addr = ipaddress.ip_address(ip_str)
+            except ValueError:
+                return False
+            return any(addr in net for net in trusted)
+
+        if peer != "unknown" and trusted and _is_trusted(peer):
+            xff = request.headers.get("X-Forwarded-For")
+            if xff:
+                for hop in reversed([h.strip() for h in xff.split(",") if h.strip()]):
+                    if not _is_trusted(hop):
+                        return hop
+            real_ip = request.headers.get("X-Real-IP")
+            if real_ip:
+                return real_ip.strip()
+
+        return peer
     
     def _calculate_adaptive_limit(self, ip_address: str, reputation_score: float) -> int:
         """Calculate adaptive rate limit based on IP reputation"""

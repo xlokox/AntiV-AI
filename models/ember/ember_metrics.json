@@ -1,0 +1,47 @@
+{
+  "trained_at": "2026-06-10 08:50:14 UTC",
+  "algo": "lightgbm",
+  "algo_arg": "lgbm",
+  "train_limit": 0,
+  "n_train": 600000,
+  "n_train_mal": 300000,
+  "n_train_ben": 300000,
+  "n_test": 200000,
+  "n_test_mal": 100000,
+  "n_test_ben": 100000,
+  "feature_dim": 2381,
+  "metrics": {
+    "roc_auc": 0.9968910549,
+    "roc_auc_maxfpr_1e-3": 0.9063609304652326,
+    "roc_auc_maxfpr_1e-2": 0.9664596381909548,
+    "pr_auc": 0.9973431571014679,
+    "brier_score": 0.01719662806835774,
+    "detection_at_fpr": {
+      "fpr_0.001": {
+        "tpr": 0.88528,
+        "threshold": 0.9982120244218176
+      },
+      "fpr_0.01": {
+        "tpr": 0.96586,
+        "threshold": 0.789407243929572
+      },
+      "fpr_0.05": {
+        "tpr": 0.98611,
+        "threshold": 0.03950123432914473
+      }
+    },
+    "operating_threshold": 0.789407243929572,
+    "confusion_at_threshold": {
+      "tp": 96586,
+      "fp": 1000,
+      "fn": 3414,
+      "tn": 99000
+    },
+    "at_threshold": {
+      "precision": 0.9897526284508024,
+      "recall": 0.96586,
+      "f1": 0.977660360551861,
+      "accuracy": 0.97793
+    }
+  }
+}

@@ -292,21 +292,51 @@ class RateLimiter:
         }
     
     def _get_client_ip(self, request: Request) -> str:
-        """Get client IP address from request"""
-        # Check for forwarded headers (if behind proxy)
-        forwarded_for = request.headers.get("X-Forwarded-For")
-        if forwarded_for:
-            return forwarded_for.split(",")[0].strip()
-        
-        real_ip = request.headers.get("X-Real-IP")
-        if real_ip:
-            return real_ip
-        
-        # Fallback to direct connection
-        if request.client:
-            return request.client.host
-        
-        return "unknown"
+        """Return the client IP, resisting X-Forwarded-For spoofing.
+
+        Forwarding headers (X-Forwarded-For / X-Real-IP) are honored ONLY when the
+        DIRECT peer is a configured trusted proxy (env TRUSTED_PROXIES, a comma-
+        separated list of IPs/CIDRs). Otherwise any client could set those headers
+        to a fake IP and thereby bypass per-IP rate limits, IP blocklists and geo
+        rules, and poison the audit/SIEM logs. Default (no trusted proxies) uses the
+        real socket peer address only.
+        """
+        import os
+        import ipaddress
+        peer = request.client.host if request.client else "unknown"
+
+        # Parse the configured trusted-proxy networks.
+        trusted = []
+        for token in os.environ.get("TRUSTED_PROXIES", "").split(","):
+            token = token.strip()
+            if not token:
+                continue
+            try:
+                trusted.append(ipaddress.ip_network(token, strict=False))
+            except ValueError:
+                continue
+
+        def _is_trusted(ip_str: str) -> bool:
+            try:
+                addr = ipaddress.ip_address(ip_str)
+            except ValueError:
+                return False
+            return any(addr in net for net in trusted)
+
+        # Only consult forwarding headers if the immediate peer is trusted.
+        if peer != "unknown" and trusted and _is_trusted(peer):
+            xff = request.headers.get("X-Forwarded-For")
+            if xff:
+                # Return the rightmost hop that is NOT itself a trusted proxy:
+                # that is the real client as seen by our trusted edge.
+                for hop in reversed([h.strip() for h in xff.split(",") if h.strip()]):
+                    if not _is_trusted(hop):
+                        return hop
+            real_ip = request.headers.get("X-Real-IP")
+            if real_ip:
+                return real_ip.strip()
+
+        return peer
     
     def _get_endpoint_category(self, path: str) -> str:
         """Categorize endpoint for rate limiting"""

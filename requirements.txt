@@ -3,25 +3,27 @@ tabulate==0.9.0
 colorama==0.4.6
 fastapi==0.104.1
 uvicorn==0.24.0
-python-multipart==0.0.6
-python-jose==3.3.0
+python-multipart>=0.0.18      # was 0.0.6 (CVE-2024-53981 DoS via malformed multipart)
+# python-jose removed: it was unused (JWTs are handled by PyJWT) and had known CVEs.
 passlib==1.7.4
 aiofiles==23.2.1
 psutil==5.9.6
 docker==6.1.3
-requests==2.31.0
-PyJWT==2.8.0
+requests>=2.32.3              # was 2.31.0 (CVE-2024-35195, CVE-2024-47081)
+PyJWT>=2.9.0                  # was 2.8.0
 bcrypt==4.1.2
-cryptography==41.0.7
+cryptography>=43.0.1         # was 41.0.7 (multiple CVEs, incl. CVE-2024-26130)
 python-magic==0.4.27
 prometheus-client==0.19.0
 pyotp==2.9.0
 qrcode[pil]==7.4.2
-aiohttp==3.9.1
+aiohttp>=3.10.11            # was 3.9.1 (multiple CVEs, incl. CVE-2024-42367 path traversal)
 
-# Machine Learning
+# Machine Learning — real EMBER-2018 static malware detection pipeline (src/ml/)
 scikit-learn>=1.3.0
 joblib>=1.3.0
+lightgbm>=4.0.0          # gradient-boosted model (the EMBER baseline); on macOS also `brew install libomp`
+lief>=0.12,<0.14         # PE parser used for serve-time feature extraction (validated on 0.12.3)
 
 # GeoIP and Rate Limiting
 geoip2>=4.7.0

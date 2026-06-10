@@ -1,8 +1,10 @@
 # AntiV-AI 🛡️
 
-**Military-Grade AI-Powered Antivirus Engine**
+**AI-assisted static malware detection for Windows PE files**
 
-AntiV-AI is a next-generation cybersecurity platform that combines traditional signature-based detection with advanced AI/ML techniques to provide comprehensive malware protection and threat analysis.
+AntiV-AI scores how likely a Windows executable (PE file) is to be malicious by combining a **real, trained machine-learning model** with static heuristics and optional threat-intelligence lookups. The ML detector is a gradient-boosted model trained on the public **EMBER-2018** dataset (600,000 labeled samples) and evaluated on 200,000 held-out samples — the measured results and honest limitations are in [AI Detection](#-ai-detection-real-and-measured) below.
+
+> **Project status (2026-06).** This is an actively-developed portfolio project, documented honestly. The machine-learning detection has been rebuilt to be genuinely real (see [models/ember/MODEL_CARD.md](models/ember/MODEL_CARD.md)); the previous version scored files with a random-number placeholder. Security hardening of the API layer is in progress and tracked separately — **do not rely on this as the only protection on a production endpoint.**
 
 ## 🚀 Features
 
@@ -10,8 +12,8 @@ AntiV-AI is a next-generation cybersecurity platform that combines traditional s
 - **Hash Calculation**: SHA-256 and MD5 hashing for file identification
 - **Entropy Analysis**: Detects obfuscated/encrypted content using Shannon entropy
 - **PE Header Inspection**: Analyzes Windows executable files for suspicious indicators
-- **Risk Scoring**: Heuristic-based scoring system (0.0-1.0 scale)
-- **ML Integration**: Placeholder for future machine learning models
+- **Risk Scoring**: Deterministic heuristic score (0.0-1.0) fused with the ML probability
+- **ML Integration**: A real gradient-boosted model trained on EMBER-2018 — see [AI Detection](#-ai-detection-real-and-measured)
 
 ### Web Dashboard
 - **Beautiful UI**: Modern React-based dashboard with Material-UI components
@@ -71,10 +73,52 @@ AntiV-AI is a next-generation cybersecurity platform that combines traditional s
 - **Real-time Statistics**: System performance metrics
 - **Color-coded Results**: Visual threat level indicators
 
+## 🤖 AI Detection (real and measured)
+
+The malware classifier is a **gradient-boosted decision-tree model (LightGBM)** trained on the
+public **EMBER-2018** dataset. Every number below was *measured* on EMBER's 200,000-sample
+held-out test set — none of it is assumed or hand-set.
+
+| Metric | Value | Plain-English meaning |
+|---|---|---|
+| ROC-AUC (overall) | **0.9969** | How well it ranks malware above benign overall |
+| **Detection @ 0.1% FPR** | **88.5%** | Catches 88.5% of malware while false-flagging only **1 in 1,000** clean files |
+| Detection @ 1% FPR | 96.6% | Catches 96.6% if you tolerate 1% false alarms |
+| PR-AUC | 0.9973 | Precision/recall quality (robust to class balance) |
+| Brier score | 0.0172 | Probability calibration (lower is better) |
+
+Trained on 600,000 labeled EMBER samples (300k malicious / 300k benign); tested on 200,000
+held-out samples (100k / 100k). Full details: **[models/ember/MODEL_CARD.md](models/ember/MODEL_CARD.md)**.
+
+**How it works (and why it's trustworthy):**
+- **One feature pipeline for training *and* inference.** `src/ml/features.py` turns a PE file into
+  the same 2,381-dimensional [EMBER](https://github.com/elastic/ember) feature vector whether it is
+  vectorising the training set or scoring a live upload. This *structurally* prevents "train-serve
+  skew" — the bug that made the previous model non-functional.
+- **No fabricated metrics.** The model is *not* claimed to be perfect; an honest ~0.997 AUC with a
+  measured 88.5% catch rate at 0.1% false positives is far more credible than a suspicious "1.0".
+- **Honest degradation.** If the model file is absent, the detector reports *unavailable* and
+  contributes no score — it never invents a number (`src/ml/detector.py`).
+
+**Reproduce it yourself:**
+```bash
+# 1) Download + extract EMBER-2018 into data/ember/ (~1.6GB download, ~10GB extracted)
+curl -L -o data/ember/ember.tar.bz2 https://ember.elastic.co/ember_dataset_2018_2.tar.bz2
+tar -xjf data/ember/ember.tar.bz2 -C data/ember/
+# 2) Train (LightGBM if installed, else scikit-learn HistGradientBoosting)
+python scripts/train_ember.py --train-limit 0 --algo lgbm
+```
+
+**Limitations (read these).** Static analysis of **PE files only**; it does not inspect scripts,
+documents, ELF/Mach-O, archives, or runtime behaviour. Static models are evadable by packing and
+adversarial perturbation, and accuracy on genuinely new malware families will be lower than these
+2018-test numbers — retrain periodically. Use it as one layer in a defense-in-depth stack.
+
 ## 📋 Requirements
 
 ```bash
 pip install -r requirements.txt
+# On macOS, LightGBM also needs the OpenMP runtime:  brew install libomp
 ```
 
 **Backend Dependencies:**
@@ -201,9 +245,10 @@ The system uses a multi-factor heuristic approach:
 - **Very small files** (<1KB): +0.1
 - **Very large files** (>50MB): +0.05
 
-### ML Component (Placeholder)
-- **Simulated ML score**: Up to +0.3 risk
-- **Future**: Real neural network inference
+### ML Component (real)
+- **EMBER-trained model**: contributes its malware probability (0.0–1.0) to the fused score
+- **Fusion**: when available, the final risk = 40% static heuristics + 30% threat-intel + 30% ML
+- **Details & measured accuracy**: see [AI Detection](#-ai-detection-real-and-measured)
 
 ### Threat Levels
 - **HIGH** (≥0.8): Immediate attention required

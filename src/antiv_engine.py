@@ -15,7 +15,9 @@ from process_monitor import ProcessMonitor
 from quarantine import QuarantineManager
 from sandbox import SandboxManager
 from threat_intel import threat_intel
-from ml_detector import ml_detector
+# Real ML detector: an EMBER-2018-trained gradient-boosted model that scores PE
+# files via the shared feature extractor (replaces the old synthetic ml_detector).
+from ml.detector import ember_detector
 from blockchain_audit import blockchain_audit
 from integrations.slack_notifier import slack_notifier
 from performance import redis_cache, parallel_scanner
@@ -106,19 +108,30 @@ class AntiVEngine:
             except Exception as e:
                 self.logger.warning(f"Threat intelligence lookup failed: {str(e)}")
 
-        # Perform ML behavioral analysis
-        ml_prediction = None
-        ml_score = 0.0
+        # Perform ML threat detection with the EMBER-trained gradient-boosted model.
+        # This is REAL static ML inference (src/ml/detector.py): the file's bytes are
+        # turned into the same 2,381-dimensional feature vector used during training
+        # and scored by the model. We run it in a worker thread so the CPU-bound
+        # extraction/inference does not block the async event loop. If no model is
+        # loaded, the detector reports `available=False` (probability None) and we
+        # simply contribute no ML signal -- it never fabricates a score.
+        ml_prediction = None          # holds the MalwareScore when ML is available, else None
+        ml_score = 0.0                # 0.0..1.0 malware probability fused into the risk score
 
         try:
-            ml_prediction = await ml_detector.analyze_behavior(file_path, analysis_result)
-            ml_score = ml_prediction.confidence_score
-
-            self.logger.info(f"ML analysis: Confidence {ml_prediction.confidence_score:.3f}, "
-                           f"Threat probability {ml_prediction.threat_probability:.3f}")
-
+            ml_result = await asyncio.to_thread(ember_detector.predict_path, file_path)
+            if ml_result.available and ml_result.malware_probability is not None:
+                ml_prediction = ml_result
+                ml_score = ml_result.malware_probability
+                self.logger.info(
+                    f"ML analysis: malware_probability={ml_score:.3f} "
+                    f"(model={ml_result.model_algo}, is_pe={ml_result.is_pe})"
+                )
+            else:
+                # Honest 'no ML signal' path (model not trained yet, or non-PE input).
+                self.logger.info(f"ML analysis unavailable: {ml_result.error or 'no signal'}")
         except Exception as e:
-            self.logger.warning(f"ML behavioral analysis failed: {str(e)}")
+            self.logger.warning(f"ML threat detection failed: {str(e)}")
 
         # Integrate all scores: static analysis, threat intelligence, and ML
         base_risk_score = analysis_result.get('risk_score', 0.0)
@@ -261,7 +274,11 @@ class AntiVEngine:
                 'md5': analysis_result.get('md5', ''),
                 'entropy': analysis_result.get('entropy', 0.0),
                 'file_size': analysis_result.get('file_size', 0),
-                'pe_analysis': analysis_result.get('pe_analysis', {})
+                'pe_analysis': analysis_result.get('pe_analysis', {}),
+                # Surface the real ML signal so the UI can display the model's verdict.
+                'ml_malware_probability': ml_score,
+                'ml_available': ml_prediction is not None,
+                'ml_is_pe': bool(getattr(ml_prediction, 'is_pe', False)),
             },
             'threat_intelligence': {
                 'available': threat_intel_result is not None,

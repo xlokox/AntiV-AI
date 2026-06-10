@@ -68,15 +68,23 @@ class SandboxManager:
             self.docker_client = None
             self.logger.warning("Docker module not installed. Sandbox functionality will be limited.")
         
-        # Sandbox configuration
+        # Hardened isolation for executing UNTRUSTED, likely-malicious files:
+        #  - no network at all, drop EVERY Linux capability, no privilege escalation
+        #  - read-only root filesystem (only the bind-mounted /sandbox stays writable
+        #    so the monitor can write results.json)
+        #  - a PID cap to blunt fork bombs
+        # The previous config set read_only=False AND added back CHOWN / DAC_OVERRIDE /
+        # FOWNER / SETUID / SETGID, which materially weakened containment of the very
+        # malware this sandbox exists to contain.
         self.sandbox_config = {
             'memory_limit': '512m',
             'cpu_limit': '0.5',
-            'network_mode': 'none',  # Isolated network
-            'read_only': False,
+            'network_mode': 'none',          # fully isolated network
+            'read_only': True,               # immutable root filesystem
             'security_opt': ['no-new-privileges:true'],
-            'cap_drop': ['ALL'],
-            'cap_add': ['CHOWN', 'DAC_OVERRIDE', 'FOWNER', 'SETGID', 'SETUID'],
+            'cap_drop': ['ALL'],             # drop every Linux capability
+            'cap_add': [],                   # add NONE back
+            'pids_limit': 256,               # mitigate fork bombs
         }
         
         # Execution tracking
@@ -342,6 +350,8 @@ if __name__ == "__main__":
                     security_opt=self.sandbox_config['security_opt'],
                     cap_drop=self.sandbox_config['cap_drop'],
                     cap_add=self.sandbox_config['cap_add'],
+                    read_only=self.sandbox_config['read_only'],      # immutable root FS
+                    pids_limit=self.sandbox_config['pids_limit'],    # fork-bomb guard
                     detach=True,
                     remove=True
                 )

@@ -8,7 +8,7 @@ import jwt
 import bcrypt
 import sqlite3
 import secrets
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from typing import Dict, List, Optional, Tuple
 from dataclasses import dataclass
 from fastapi import HTTPException, Depends, status
@@ -16,10 +16,39 @@ from fastapi.security import HTTPBearer, HTTPAuthorizationCredentials
 import logging
 
 # Security configuration
-JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY', secrets.token_urlsafe(32))
+# ENVIRONMENT controls fail-closed behaviour. Set ANTIV_ENV=production (or
+# ENVIRONMENT=production) on real deployments so that missing secrets ABORT
+# startup instead of silently falling back to insecure defaults.
+ENVIRONMENT = os.getenv('ANTIV_ENV', os.getenv('ENVIRONMENT', 'development')).strip().lower()
+_IS_PRODUCTION = ENVIRONMENT in ('production', 'prod')
+
+# JWT signing secret. In production it MUST come from the environment and be long
+# enough to resist brute force; we refuse to start otherwise (fail closed). In
+# development we generate a strong EPHEMERAL key and warn loudly — tokens then do
+# not survive a restart, which is acceptable for local work only. (The old code
+# silently used a random per-process key in all environments, breaking sessions
+# on every restart and never alerting the operator.)
+JWT_SECRET_KEY = os.getenv('JWT_SECRET_KEY')
+if not JWT_SECRET_KEY:
+    if _IS_PRODUCTION:
+        raise RuntimeError(
+            "JWT_SECRET_KEY is not set. Refusing to start in production with an "
+            "ephemeral signing key — set a stable secret of 32+ characters."
+        )
+    JWT_SECRET_KEY = secrets.token_urlsafe(64)  # dev-only ephemeral key
+    logging.getLogger(__name__).warning(
+        "JWT_SECRET_KEY not set; using an EPHEMERAL development key. All tokens are "
+        "invalidated on restart. Set JWT_SECRET_KEY for stable authentication."
+    )
+elif len(JWT_SECRET_KEY) < 32:
+    raise RuntimeError("JWT_SECRET_KEY must be at least 32 characters long.")
+
 JWT_ALGORITHM = "HS256"
 ACCESS_TOKEN_EXPIRE_MINUTES = 30
 REFRESH_TOKEN_EXPIRE_DAYS = 7
+
+# Role privilege levels for default-deny, hierarchical RBAC (higher = more access).
+ROLE_LEVELS = {'user': 1, 'analyst': 2, 'admin': 3}
 
 # Password requirements
 MIN_PASSWORD_LENGTH = 12
@@ -145,8 +174,27 @@ class AuthManager:
                 admin_count = cursor.fetchone()[0]
                 
                 if admin_count == 0:
-                    # Create default admin
-                    default_password = os.getenv('ADMIN_PASSWORD', 'AntiV-AI-Admin-2024!')
+                    # Bootstrap the admin account WITHOUT any hardcoded password.
+                    # Production: ADMIN_PASSWORD must be supplied (fail closed).
+                    # Development: generate a random strong password and log it ONCE.
+                    # (The old code defaulted to the literal 'AntiV-AI-Admin-2024!',
+                    # which was committed to the repo — a public, known credential.)
+                    default_password = os.getenv('ADMIN_PASSWORD')
+                    if not default_password:
+                        if _IS_PRODUCTION:
+                            raise RuntimeError(
+                                "ADMIN_PASSWORD is not set; refusing to bootstrap the admin "
+                                "account with a default credential in production."
+                            )
+                        default_password = secrets.token_urlsafe(18) + "Aa1!"  # dev-only
+                        self.logger.warning(
+                            "ADMIN_PASSWORD not set; generated a random one-time admin "
+                            "password (shown once, store it now): %s", default_password
+                        )
+                    # Reject a weak operator-supplied password before it becomes the admin login.
+                    is_strong, pw_errors = self._validate_password_strength(default_password)
+                    if not is_strong:
+                        raise RuntimeError("ADMIN_PASSWORD is too weak: " + "; ".join(pw_errors))
                     password_hash = self._hash_password(default_password)
                     
                     cursor.execute('''
@@ -205,9 +253,10 @@ class AuthManager:
             if not is_strong:
                 raise ValueError(f"Password validation failed: {', '.join(errors)}")
             
-            # Validate role
-            if role not in ['admin', 'user']:
-                raise ValueError("Role must be 'admin' or 'user'")
+            # Validate role. 'analyst' is a real mid-tier role (between user and
+            # admin) so the analyst-gated endpoints have actual principals to grant.
+            if role not in ['admin', 'analyst', 'user']:
+                raise ValueError("Role must be 'admin', 'analyst' or 'user'")
             
             password_hash = self._hash_password(password)
             
@@ -371,7 +420,10 @@ class AuthManager:
     def create_access_token(self, user: User) -> str:
         """Create JWT access token"""
         jti = secrets.token_urlsafe(32)
-        now = datetime.utcnow()
+        # Timezone-AWARE UTC so exp.timestamp() is a correct epoch on any host.
+        # (datetime.utcnow() is naive; calling .timestamp() on it silently assumes
+        # local time, so on a non-UTC machine access tokens expired immediately.)
+        now = datetime.now(timezone.utc)
         exp = now + timedelta(minutes=ACCESS_TOKEN_EXPIRE_MINUTES)
         
         payload = {
@@ -394,7 +446,10 @@ class AuthManager:
     def create_refresh_token(self, user: User) -> str:
         """Create JWT refresh token"""
         jti = secrets.token_urlsafe(32)
-        now = datetime.utcnow()
+        # Timezone-AWARE UTC so exp.timestamp() is a correct epoch on any host.
+        # (datetime.utcnow() is naive; calling .timestamp() on it silently assumes
+        # local time, so on a non-UTC machine access tokens expired immediately.)
+        now = datetime.now(timezone.utc)
         exp = now + timedelta(days=REFRESH_TOKEN_EXPIRE_DAYS)
         
         payload = {
@@ -436,11 +491,22 @@ class AuthManager:
         except Exception as e:
             self.logger.error(f"Error storing session: {str(e)}")
     
-    def verify_token(self, token: str) -> Optional[TokenData]:
-        """Verify and decode JWT token"""
+    def verify_token(self, token: str, expected_type: str = 'access') -> Optional[TokenData]:
+        """Verify and decode a JWT, enforcing the expected token type.
+
+        Access and refresh tokens are signed with the SAME key, so the `type`
+        claim is what actually separates their privileges. Without this check a
+        long-lived (7-day) refresh token could be used as an access token to call
+        protected endpoints. `expected_type=None` disables the check (used by the
+        logging middleware, which only wants to identify the caller).
+        """
         try:
             payload = jwt.decode(token, JWT_SECRET_KEY, algorithms=[JWT_ALGORITHM])
-            
+
+            # Reject tokens of the wrong type (e.g. a refresh token used for API access).
+            if expected_type is not None and payload.get('type') != expected_type:
+                return None
+
             jti = payload.get('jti')
             if not jti:
                 return None
@@ -462,9 +528,13 @@ class AuthManager:
                 if not row:
                     return None
                 
-                # Check if session is expired
+                # Check if session is expired, comparing in UTC. Old rows may be
+                # naive (stored before this fix); treat naive timestamps as UTC so
+                # the comparison never raises and never mis-expires a valid session.
                 expires_at = datetime.fromisoformat(row[1])
-                if datetime.now() > expires_at:
+                if expires_at.tzinfo is None:
+                    expires_at = expires_at.replace(tzinfo=timezone.utc)
+                if datetime.now(timezone.utc) > expires_at:
                     return None
             
             return TokenData(
@@ -542,9 +612,18 @@ class AuthManager:
         return token_data
     
     def require_role(self, required_role: str):
-        """Dependency factory for role-based access control"""
+        """Dependency factory for DEFAULT-DENY, hierarchical role-based access control.
+
+        The previous implementation only ever enforced the literal 'admin' role, so
+        require_role('analyst') authorised ANY authenticated user (including plain
+        'user' accounts). This version compares privilege levels: a caller passes
+        only if their role's level is >= the level the endpoint requires. Unknown
+        required roles are unsatisfiable and unknown caller roles get zero privilege.
+        """
         async def role_checker(current_user: TokenData = Depends(self.get_current_user)) -> TokenData:
-            if required_role == 'admin' and current_user.role != 'admin':
+            required_level = ROLE_LEVELS.get(required_role, 999)   # unknown -> impossible to satisfy
+            user_level = ROLE_LEVELS.get(current_user.role, 0)     # unknown -> lowest privilege
+            if user_level < required_level:
                 raise HTTPException(
                     status_code=status.HTTP_403_FORBIDDEN,
                     detail="Insufficient permissions"
