@@ -1,0 +1,210 @@
+================================================================================
+  AntiV-AI — Project Report
+  AI-assisted static malware detection, a hardened API, and a security console
+================================================================================
+  Author:        Daniel Knafel
+  Repository:    AntiV-AI  (Python / FastAPI backend + React frontend)
+  Report date:   June 2026
+  Audience:      Hiring managers / technical reviewers
+--------------------------------------------------------------------------------
+
+ONE-LINE SUMMARY
+----------------
+A full-stack security product that scores how likely a Windows executable is to
+be malware, using a real machine-learning model trained on a public 1.1M-sample
+dataset, served through a hardened REST API and a modern web console.
+
+
+WHY THIS REPORT EXISTS (and how to read it)
+-------------------------------------------
+I want a reviewer to be able to judge the *engineering*, not the marketing. So
+this report is deliberately honest: it states what the system really does, shows
+metrics I actually measured, and is candid about how I worked (including where I
+used AI tooling). If anything below sounds too good, ask me about it in an
+interview — I can walk through the code line by line and explain every decision.
+
+
+SNAPSHOT
+--------
+  Backend ........ Python 3.12, FastAPI, ~24k lines across ~25 modules
+  ML ............. scikit-learn / LightGBM, LIEF + custom PE feature extractor
+  Dataset ........ EMBER-2018 (600k labeled train, 200k held-out test)
+  Frontend ....... React 19, MUI 7, React Router, recharts (single-page console)
+  Infra .......... SQLite, Docker (sandbox), pytest, GitHub Actions
+  Headline result  ROC-AUC 0.9969; catches 88.5% of malware at a 0.1% false-
+                   positive rate (measured on 200k unseen files)
+
+
+WHAT THE SYSTEM DOES
+--------------------
+  * Scans a Windows PE file (.exe/.dll/.sys) and returns a malware probability,
+    a fused risk score, and a threat level (CLEAN / LOW / MEDIUM / HIGH).
+  * Combines three signals: a machine-learning model, static heuristics
+    (entropy, PE structure, suspicious indicators), and optional threat-intel
+    lookups (VirusTotal / OTX / MalwareBazaar).
+  * Quarantines high-risk files, keeps an audit trail, and can detonate a sample
+    inside an isolated Docker sandbox.
+  * Is operated through an authenticated web console (login, dashboard, scanner,
+    history, flagged files, quarantine manager, live monitoring).
+
+
+THE THREE THINGS I'M MOST PROUD OF
+----------------------------------
+
+1) I MADE THE "AI" ACTUALLY REAL — AND CAUGHT A SUBTLE BUG THAT MOST PEOPLE MISS
+   The hardest part of an ML product is not training a model; it's making sure
+   the model sees the *same kind of input* in production as it did in training.
+   I built a single feature-extraction module (src/ml/features.py) that turns a
+   PE file into a 2,381-dimension vector, and I use that exact same code in two
+   places: when I vectorize the training dataset, and when I score a live upload.
+   That design choice eliminates "train/serve skew" — the classic failure where a
+   model looks great in a notebook and is useless in production because the
+   feature pipelines silently diverge.
+
+   I trained a LightGBM gradient-boosted model on the public EMBER-2018 dataset
+   (600,000 labeled samples) and evaluated it on 200,000 files the model never
+   saw. I deliberately report the metric that matters for antivirus — detection
+   rate at a *fixed, very low* false-positive budget — instead of plain
+   "accuracy", which is misleading for security. Every number is in a model card
+   the training script generates automatically (models/ember/MODEL_CARD.md), so
+   the results are reproducible, not hand-typed.
+
+2) I HARDENED THE API LIKE AN ATTACKER WOULD ATTACK IT
+   I did a security pass over the whole backend and fixed a set of real,
+   exploitable issues, then wrote a regression test for each so they can't come
+   back. Highlights:
+     - Added authentication/authorization to sensitive endpoints (quarantine,
+       sandbox, monitoring, system status) that were previously open.
+     - Rewrote role-based access control to be DEFAULT-DENY and hierarchical
+       (user < analyst < admin) instead of only ever checking for "admin".
+     - Contained an arbitrary-file-write path (quarantine restore) so a
+       de-obfuscated sample can only ever land in a safe directory.
+     - Removed a hardcoded default admin password and a per-process random JWT
+       secret; the app now fails closed in production if secrets aren't set.
+     - Stopped trusting a spoofable client header (X-Forwarded-For) that let an
+       attacker bypass rate limiting and geo controls.
+     - Replaced pickle-based cache deserialization (a remote-code-execution risk)
+       with JSON, and constrained file-scan paths to an allowlist.
+     - Found and fixed a timezone bug that made access tokens expire instantly on
+       any server not running in UTC.
+   These are documented and covered by a 14-test security suite.
+
+3) I REBUILT THE FRONTEND INTO SOMETHING THAT LOOKS LIKE A REAL PRODUCT
+   The UI is a single-page React console with a real authentication flow: login,
+   in-memory access token, silent refresh-token renewal, an axios interceptor
+   that transparently retries on 401, and route guards. I designed a dark
+   "threat console" theme (deep slate with cyan/emerald accents) and built seven
+   pages, including a drag-and-drop scanner that surfaces the model's malware
+   probability and a dashboard with live KPIs and a threat-distribution chart.
+
+
+MEASURED RESULTS (held-out EMBER-2018 test set, 200,000 files)
+--------------------------------------------------------------
+  ROC-AUC (overall) .............................. 0.9969
+  Detection rate @ 0.1% false-positive rate ...... 88.5%
+  Detection rate @ 1%   false-positive rate ...... 96.6%
+  PR-AUC ......................................... 0.9973
+  Calibration (Brier score, lower is better) ..... 0.0172
+  At the ~1% FPR operating point: precision 98.98%, recall 96.59%, F1 0.978.
+
+  I intentionally did NOT chase a "perfect" 1.0 score. A model that reports 1.0
+  across every metric is almost always overfitting or leaking — an honest ~0.997
+  with a real low-FPR catch rate is the credible result.
+
+
+ARCHITECTURE (how the pieces fit)
+---------------------------------
+  Request  ->  FastAPI (auth, rate limiting, security headers)
+           ->  AntiVEngine (orchestrator)
+                 ->  static analyzer (hashes, entropy, PE inspection)
+                 ->  EMBER ML detector (feature extractor -> LightGBM)
+                 ->  threat-intel lookups (optional)
+                 ->  score fusion -> quarantine / sandbox / audit
+           ->  SQLite (scans, audit, sessions) + JSON/Redis cache
+  Frontend (React SPA) talks to the API with JWTs over the same origin.
+
+
+ENGINEERING PRACTICES I CARE ABOUT
+----------------------------------
+  * Honest documentation: the README and the model card state real numbers and
+    real limitations (static analysis only, evadable by packing, concept drift).
+  * Tests as guardrails: every security fix and the ML pipeline have tests so a
+    future change that breaks them fails CI rather than shipping.
+  * Secure defaults: secrets from the environment, fail-closed in production,
+    least-privilege sandboxing (read-only container, all capabilities dropped).
+  * Readable code: the modules I wrote are commented to explain *why*, not just
+    *what*, so a teammate can pick them up.
+
+
+REALISTIC EFFORT & TIMELINE
+---------------------------
+  This is a substantial project and I want to be straight about the time. The
+  numbers below are honest engineering effort for a single developer; they are
+  not padded to look bigger.
+
+    Research & design (EMBER, PE features, threat model, architecture) ~ 20-30 h
+    ML pipeline (extractor, training, evaluation, model card, wiring) .. ~ 25-35 h
+    Backend subsystems (auth, rate limiting, quarantine, sandbox, etc.). ~ 50-70 h
+    Security audit + hardening + regression tests ..................... ~ 20-30 h
+    Frontend (auth flow, design system, seven pages) .................. ~ 30-45 h
+    Testing, integration, debugging, docs ............................. ~ 20-35 h
+    ---------------------------------------------------------------------------
+    TOTAL realistic effort ............................................ ~ 165-245 hours
+
+  In calendar terms that is roughly 6-10 weeks part-time (evenings and weekends)
+  or about 4-6 weeks full-time. Modern AI coding tools compressed the wall-clock
+  meaningfully — see the next section.
+
+
+HOW I BUILT IT (methodology — the honest part)
+----------------------------------------------
+  I built this the way I'd build software on a real team in 2026: human-led and
+  AI-assisted. I owned the direction and the decisions — what to build, which
+  dataset to trust, which metric actually matters for AV, which vulnerabilities
+  to fix first, and how the UI should feel. I used AI coding assistants to move
+  faster on implementation, boilerplate, and exploration, and I reviewed,
+  tested, debugged, and integrated the result myself. The judgment calls in this
+  project — using EMBER instead of a toy dataset, reporting low-FPR detection
+  instead of vanity accuracy, fixing the train/serve skew, prioritizing security
+  hardening, and choosing the product's design language — are mine, and I can
+  defend every one of them in a technical conversation.
+
+  I mention this on purpose. AI-assisted development is now standard practice;
+  pretending otherwise would be both inaccurate and a red flag to anyone who
+  looks closely. What I want a reviewer to take away is that I can scope a real
+  security product, make sound engineering trade-offs, and ship something that
+  works and is honestly documented.
+
+
+WHAT I'D DO NEXT (shows where I know the gaps are)
+--------------------------------------------------
+  * Replace the field-encryption layer with proper authenticated encryption
+    (AES-256-GCM) and real key management instead of the current placeholder.
+  * Fix a known bug where the threat-intel lookup silently no-ops under the async
+    event loop, so the third detection signal actually contributes.
+  * Expand model coverage beyond PE files and add periodic retraining + drift
+    monitoring to handle concept drift.
+  * Add end-to-end frontend tests and wire the full suite into CI as a gate.
+
+
+HOW TO RUN IT
+-------------
+  Backend:
+    pip install -r requirements.txt          # (macOS: brew install libomp)
+    export JWT_SECRET_KEY=<32+ char secret>  # required outside dev
+    export ADMIN_PASSWORD=<strong password>  # bootstraps the admin account
+    uvicorn src.app:app --port 8000
+
+  Train the model (downloads the EMBER-2018 dataset, ~1.6GB):
+    python scripts/train_ember.py --train-limit 0 --algo lgbm
+
+  Frontend:
+    cd frontend && npm install && npm start   # http://localhost:3000
+
+  Tests:
+    python -m pytest
+
+================================================================================
+  Thanks for reading. I'm happy to do a live code walkthrough of any part of
+  this — the ML feature pipeline and the security hardening are my favorites.
+================================================================================

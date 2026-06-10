@@ -438,8 +438,10 @@ class TestMLEvaluationFramework:
         """Test individual model evaluation"""
         model, scaler, X, y = sample_model_and_data
         
-        # Mock model manager
-        with patch('src.ml_evaluation.ml_model_manager') as mock_manager:
+        # ml_evaluation is imported as the top-level module `ml_evaluation` (src is on
+        # sys.path), and it binds ml_model_manager via `from ml_model_manager import ...`,
+        # so the live reference is ml_evaluation.ml_model_manager (not src.ml_evaluation).
+        with patch('ml_evaluation.ml_model_manager') as mock_manager:
             mock_manager.load_model.side_effect = lambda model_type, version=None: {
                 'behavioral_analysis': model,
                 'feature_scaler': scaler

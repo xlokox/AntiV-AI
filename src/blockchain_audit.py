@@ -647,18 +647,5 @@ class BlockchainAudit:
             session_id=session_id
         )
 
-    def force_finalize_block(self):
-        """
-        Force finalization of the current block for testing purposes
-
-        This method is primarily used in tests to ensure blocks are properly
-        finalized before verification.
-        """
-        if self.current_block and len(self.current_block.entries) > 0:
-            self.logger.info(f"Force finalizing block {self.current_block.block_number}")
-            self._finalize_current_block()
-        else:
-            self.logger.debug("No current block to finalize or block is empty")
-
 # Global blockchain audit instance
 blockchain_audit = BlockchainAudit()

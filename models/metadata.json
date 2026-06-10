@@ -149,7 +149,7 @@
       "created_by": "training_script",
       "feature_count": 15,
       "file_path": "/Users/danielknafel/AntiV-AI/models/behavioral_analysis_20250725_214054.pkl",
-      "is_active": true,
+      "is_active": false,
       "metrics": {
         "accuracy": 1.0,
         "f1_score": 1.0,
@@ -173,7 +173,7 @@
       "created_by": "training_script",
       "feature_count": 15,
       "file_path": "/Users/danielknafel/AntiV-AI/models/ensemble_model_20250725_214054.pkl",
-      "is_active": true,
+      "is_active": false,
       "metrics": {
         "accuracy": 1.0,
         "f1_score": 1.0,
@@ -197,7 +197,7 @@
       "created_by": "training_script",
       "feature_count": 15,
       "file_path": "/Users/danielknafel/AntiV-AI/models/isolation_forest_20250725_214054.pkl",
-      "is_active": true,
+      "is_active": false,
       "metrics": {
         "accuracy": 0.5,
         "f1_score": 0.0,
@@ -213,6 +213,654 @@
       "timestamp": "2025-07-25T21:40:55.143027",
       "training_samples": 8,
       "version": "20250725_214054"
+    }
+  },
+  "20260610_130251": {
+    "behavioral_analysis": {
+      "algorithm": "RandomForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpc5176a09/models/behavioral_analysis_20260610_130251.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "behavioral_analysis",
+      "notes": "Automated training session 20260610_130251",
+      "parameters": {
+        "max_depth": 10,
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:02:51.951240",
+      "training_samples": 16,
+      "version": "20260610_130251"
+    },
+    "ensemble": {
+      "algorithm": "Ensemble",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpc5176a09/models/ensemble_model_20260610_130251.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "ensemble",
+      "notes": "Automated training session 20260610_130251",
+      "parameters": {
+        "behavioral_weight": 0.4,
+        "isolation_weight": 0.3,
+        "static_weight": 0.3
+      },
+      "timestamp": "2026-06-10T13:02:51.952762",
+      "training_samples": 16,
+      "version": "20260610_130251"
+    },
+    "isolation_forest": {
+      "algorithm": "IsolationForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpc5176a09/models/isolation_forest_20260610_130251.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "model_type": "isolation_forest",
+      "notes": "Automated training session 20260610_130251",
+      "parameters": {
+        "contamination": 0.1,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:02:51.952141",
+      "training_samples": 16,
+      "version": "20260610_130251"
+    }
+  },
+  "20260610_130416": {
+    "behavioral_analysis": {
+      "algorithm": "RandomForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpetsobrdh/behavioral_analysis_20260610_130416.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "behavioral_analysis",
+      "notes": "Automated training session 20260610_130416",
+      "parameters": {
+        "max_depth": 10,
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:04:16.749196",
+      "training_samples": 40,
+      "version": "20260610_130416"
+    },
+    "ensemble": {
+      "algorithm": "Ensemble",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpetsobrdh/ensemble_model_20260610_130416.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "ensemble",
+      "notes": "Automated training session 20260610_130416",
+      "parameters": {
+        "behavioral_weight": 0.4,
+        "isolation_weight": 0.3,
+        "static_weight": 0.3
+      },
+      "timestamp": "2026-06-10T13:04:16.750708",
+      "training_samples": 40,
+      "version": "20260610_130416"
+    },
+    "isolation_forest": {
+      "algorithm": "IsolationForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpetsobrdh/isolation_forest_20260610_130416.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 0.8,
+        "f1_score": 0.75,
+        "precision": 1.0,
+        "recall": 0.6
+      },
+      "model_type": "isolation_forest",
+      "notes": "Automated training session 20260610_130416",
+      "parameters": {
+        "contamination": 0.1,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:04:16.750033",
+      "training_samples": 40,
+      "version": "20260610_130416"
+    }
+  },
+  "20260610_130417": {
+    "behavioral_analysis": {
+      "algorithm": "RandomForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpm0ap2vvj/models/behavioral_analysis_20260610_130417.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "behavioral_analysis",
+      "notes": "Automated training session 20260610_130417",
+      "parameters": {
+        "max_depth": 10,
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:04:17.199541",
+      "training_samples": 16,
+      "version": "20260610_130417"
+    },
+    "ensemble": {
+      "algorithm": "Ensemble",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpm0ap2vvj/models/ensemble_model_20260610_130417.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "ensemble",
+      "notes": "Automated training session 20260610_130417",
+      "parameters": {
+        "behavioral_weight": 0.4,
+        "isolation_weight": 0.3,
+        "static_weight": 0.3
+      },
+      "timestamp": "2026-06-10T13:04:17.201217",
+      "training_samples": 16,
+      "version": "20260610_130417"
+    },
+    "isolation_forest": {
+      "algorithm": "IsolationForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpm0ap2vvj/models/isolation_forest_20260610_130417.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "model_type": "isolation_forest",
+      "notes": "Automated training session 20260610_130417",
+      "parameters": {
+        "contamination": 0.1,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:04:17.200396",
+      "training_samples": 16,
+      "version": "20260610_130417"
+    }
+  },
+  "20260610_130651": {
+    "behavioral_analysis": {
+      "algorithm": "RandomForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmp4sz9xvhm/models/behavioral_analysis_20260610_130651.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "behavioral_analysis",
+      "notes": "Automated training session 20260610_130651",
+      "parameters": {
+        "max_depth": 10,
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:06:52.105177",
+      "training_samples": 16,
+      "version": "20260610_130651"
+    },
+    "ensemble": {
+      "algorithm": "Ensemble",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmp4sz9xvhm/models/ensemble_model_20260610_130651.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "ensemble",
+      "notes": "Automated training session 20260610_130651",
+      "parameters": {
+        "behavioral_weight": 0.4,
+        "isolation_weight": 0.3,
+        "static_weight": 0.3
+      },
+      "timestamp": "2026-06-10T13:06:52.107592",
+      "training_samples": 16,
+      "version": "20260610_130651"
+    },
+    "isolation_forest": {
+      "algorithm": "IsolationForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmp4sz9xvhm/models/isolation_forest_20260610_130651.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "model_type": "isolation_forest",
+      "notes": "Automated training session 20260610_130651",
+      "parameters": {
+        "contamination": 0.1,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:06:52.106297",
+      "training_samples": 16,
+      "version": "20260610_130651"
+    }
+  },
+  "20260610_130830": {
+    "behavioral_analysis": {
+      "algorithm": "RandomForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpcvka8286/models/behavioral_analysis_20260610_130830.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "behavioral_analysis",
+      "notes": "Automated training session 20260610_130830",
+      "parameters": {
+        "max_depth": 10,
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:08:30.824472",
+      "training_samples": 16,
+      "version": "20260610_130830"
+    },
+    "ensemble": {
+      "algorithm": "Ensemble",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpcvka8286/models/ensemble_model_20260610_130830.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "ensemble",
+      "notes": "Automated training session 20260610_130830",
+      "parameters": {
+        "behavioral_weight": 0.4,
+        "isolation_weight": 0.3,
+        "static_weight": 0.3
+      },
+      "timestamp": "2026-06-10T13:08:30.826635",
+      "training_samples": 16,
+      "version": "20260610_130830"
+    },
+    "isolation_forest": {
+      "algorithm": "IsolationForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpcvka8286/models/isolation_forest_20260610_130830.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "model_type": "isolation_forest",
+      "notes": "Automated training session 20260610_130830",
+      "parameters": {
+        "contamination": 0.1,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:08:30.825617",
+      "training_samples": 16,
+      "version": "20260610_130830"
+    }
+  },
+  "20260610_130914": {
+    "behavioral_analysis": {
+      "algorithm": "RandomForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpsp2sa1t4/behavioral_analysis_20260610_130914.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "behavioral_analysis",
+      "notes": "Automated training session 20260610_130914",
+      "parameters": {
+        "max_depth": 10,
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:09:14.906536",
+      "training_samples": 40,
+      "version": "20260610_130914"
+    },
+    "ensemble": {
+      "algorithm": "Ensemble",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpsp2sa1t4/ensemble_model_20260610_130914.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "ensemble",
+      "notes": "Automated training session 20260610_130914",
+      "parameters": {
+        "behavioral_weight": 0.4,
+        "isolation_weight": 0.3,
+        "static_weight": 0.3
+      },
+      "timestamp": "2026-06-10T13:09:14.908808",
+      "training_samples": 40,
+      "version": "20260610_130914"
+    },
+    "isolation_forest": {
+      "algorithm": "IsolationForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpsp2sa1t4/isolation_forest_20260610_130914.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 0.8,
+        "f1_score": 0.75,
+        "precision": 1.0,
+        "recall": 0.6
+      },
+      "model_type": "isolation_forest",
+      "notes": "Automated training session 20260610_130914",
+      "parameters": {
+        "contamination": 0.1,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:09:14.907764",
+      "training_samples": 40,
+      "version": "20260610_130914"
+    }
+  },
+  "20260610_130915": {
+    "behavioral_analysis": {
+      "algorithm": "RandomForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpqmshtqdl/models/behavioral_analysis_20260610_130915.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "behavioral_analysis",
+      "notes": "Automated training session 20260610_130915",
+      "parameters": {
+        "max_depth": 10,
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:09:15.393928",
+      "training_samples": 16,
+      "version": "20260610_130915"
+    },
+    "ensemble": {
+      "algorithm": "Ensemble",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpqmshtqdl/models/ensemble_model_20260610_130915.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "ensemble",
+      "notes": "Automated training session 20260610_130915",
+      "parameters": {
+        "behavioral_weight": 0.4,
+        "isolation_weight": 0.3,
+        "static_weight": 0.3
+      },
+      "timestamp": "2026-06-10T13:09:15.396529",
+      "training_samples": 16,
+      "version": "20260610_130915"
+    },
+    "isolation_forest": {
+      "algorithm": "IsolationForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpqmshtqdl/models/isolation_forest_20260610_130915.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "model_type": "isolation_forest",
+      "notes": "Automated training session 20260610_130915",
+      "parameters": {
+        "contamination": 0.1,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:09:15.395306",
+      "training_samples": 16,
+      "version": "20260610_130915"
+    }
+  },
+  "20260610_130953": {
+    "behavioral_analysis": {
+      "algorithm": "RandomForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmp73jktj3c/behavioral_analysis_20260610_130953.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "behavioral_analysis",
+      "notes": "Automated training session 20260610_130953",
+      "parameters": {
+        "max_depth": 10,
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:09:53.786300",
+      "training_samples": 40,
+      "version": "20260610_130953"
+    },
+    "ensemble": {
+      "algorithm": "Ensemble",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmp73jktj3c/ensemble_model_20260610_130953.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "ensemble",
+      "notes": "Automated training session 20260610_130953",
+      "parameters": {
+        "behavioral_weight": 0.4,
+        "isolation_weight": 0.3,
+        "static_weight": 0.3
+      },
+      "timestamp": "2026-06-10T13:09:53.789080",
+      "training_samples": 40,
+      "version": "20260610_130953"
+    },
+    "isolation_forest": {
+      "algorithm": "IsolationForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmp73jktj3c/isolation_forest_20260610_130953.pkl",
+      "is_active": false,
+      "metrics": {
+        "accuracy": 0.8,
+        "f1_score": 0.75,
+        "precision": 1.0,
+        "recall": 0.6
+      },
+      "model_type": "isolation_forest",
+      "notes": "Automated training session 20260610_130953",
+      "parameters": {
+        "contamination": 0.1,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:09:53.787776",
+      "training_samples": 40,
+      "version": "20260610_130953"
+    }
+  },
+  "20260610_130954": {
+    "behavioral_analysis": {
+      "algorithm": "RandomForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpho2fudto/models/behavioral_analysis_20260610_130954.pkl",
+      "is_active": true,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "behavioral_analysis",
+      "notes": "Automated training session 20260610_130954",
+      "parameters": {
+        "max_depth": 10,
+        "n_estimators": 100,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:09:54.270158",
+      "training_samples": 16,
+      "version": "20260610_130954"
+    },
+    "ensemble": {
+      "algorithm": "Ensemble",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpho2fudto/models/ensemble_model_20260610_130954.pkl",
+      "is_active": true,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0,
+        "roc_auc": 1.0
+      },
+      "model_type": "ensemble",
+      "notes": "Automated training session 20260610_130954",
+      "parameters": {
+        "behavioral_weight": 0.4,
+        "isolation_weight": 0.3,
+        "static_weight": 0.3
+      },
+      "timestamp": "2026-06-10T13:09:54.273381",
+      "training_samples": 16,
+      "version": "20260610_130954"
+    },
+    "isolation_forest": {
+      "algorithm": "IsolationForest",
+      "created_by": "training_script",
+      "feature_count": 15,
+      "file_path": "/var/folders/cf/_mbvcf_10_v_0lmg95h5x4w00000gn/T/tmpho2fudto/models/isolation_forest_20260610_130954.pkl",
+      "is_active": true,
+      "metrics": {
+        "accuracy": 1.0,
+        "f1_score": 1.0,
+        "precision": 1.0,
+        "recall": 1.0
+      },
+      "model_type": "isolation_forest",
+      "notes": "Automated training session 20260610_130954",
+      "parameters": {
+        "contamination": 0.1,
+        "random_state": 42
+      },
+      "timestamp": "2026-06-10T13:09:54.271673",
+      "training_samples": 16,
+      "version": "20260610_130954"
     }
   }
 }

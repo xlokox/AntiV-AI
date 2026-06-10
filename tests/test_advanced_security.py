@@ -10,7 +10,8 @@ import tempfile
 import os
 import subprocess
 import time
-from unittest.mock import Mock, patch, AsyncMock, MagicMock
+import yaml  # used by test_scheduler_initialization to build mocked config.yaml content
+from unittest.mock import Mock, patch, AsyncMock, MagicMock, mock_open
 from datetime import datetime, timedelta
 
 # Import modules to test
@@ -88,9 +89,11 @@ class TestSIEMIntegration:
             mock_post.return_value.__aenter__.return_value = mock_response
             
             await siem_integration.forward_security_events(events)
-            
-            # Verify events were queued
-            assert len(siem_integration.event_queue) >= 3
+
+            # forward_security_events enqueues then drains the queue via _process_batch,
+            # so the queue ends up empty and the 3 events are recorded as sent.
+            assert len(siem_integration.event_queue) == 0
+            assert siem_integration.metrics.total_events_sent >= 3
     
     def test_get_siem_metrics(self, siem_integration):
         """Test SIEM metrics retrieval"""
@@ -112,6 +115,11 @@ class TestBlockchainAudit:
             audit.ledger_path = os.path.join(temp_dir, "test_ledger.json")
             audit.db_path = os.path.join(temp_dir, "test_blockchain.db")
             audit._init_blockchain_storage()
+            # __init__ already computed last_block_hash from the default DB and created
+            # a genesis block there. After repointing at the temp DB (which gets its own
+            # genesis block), re-sync last_block_hash so the chain links correctly.
+            audit.last_block_hash = audit._get_last_block_hash()
+            audit.current_block_entries = []
             yield audit
     
     def test_create_audit_entry(self, blockchain_audit):
@@ -199,11 +207,18 @@ class TestAdvancedRateLimiter:
     
     def test_calculate_adaptive_limit(self, rate_limiter):
         """Test adaptive limit calculation"""
-        # Test with different countries and reputation scores
-        limit = rate_limiter._calculate_adaptive_limit("192.168.1.1", "US", "global")
+        # _calculate_adaptive_limit returns a (limit, reason) tuple and expects
+        # country_info as a dict (with country_code/region); a bare string code
+        # falls back to region 'Unknown', which skews results against allow-listed
+        # countries. Pass proper dicts to match the real API.
+        limit, _ = rate_limiter._calculate_adaptive_limit(
+            "192.168.1.1", {"country_code": "US", "region": "North America"}, "global"
+        )
         assert limit > 0
-        
-        limit_high_risk = rate_limiter._calculate_adaptive_limit("192.168.1.1", "CN", "global")
+
+        limit_high_risk, _ = rate_limiter._calculate_adaptive_limit(
+            "192.168.1.1", {"country_code": "PK", "region": "Asia Pacific"}, "global"
+        )
         assert limit_high_risk <= limit  # Should be more restrictive
     
     def test_get_ip_reputation(self, rate_limiter):
@@ -267,19 +282,16 @@ class TestGeoIPLookup:
         """Create GeoIP lookup instance for testing"""
         return GeoIPLookup()
     
-    @pytest.mark.asyncio
-    async def test_get_country_code_private_ip(self, geoip_lookup):
+    def test_get_country_code_private_ip(self, geoip_lookup):
         """Test country code lookup for private IP"""
-        async with geoip_lookup as lookup:
-            country = await lookup.get_country_code("192.168.1.1")
-            assert country == "Private"
-    
-    @pytest.mark.asyncio
-    async def test_get_country_code_invalid_ip(self, geoip_lookup):
+        # GeoIPLookup.get_country_code is synchronous and has no async context manager.
+        country = geoip_lookup.get_country_code("192.168.1.1")
+        assert country == "Private"
+
+    def test_get_country_code_invalid_ip(self, geoip_lookup):
         """Test country code lookup for invalid IP"""
-        async with geoip_lookup as lookup:
-            country = await lookup.get_country_code("invalid-ip")
-            assert country == "Unknown"
+        country = geoip_lookup.get_country_code("invalid-ip")
+        assert country == "Unknown"
 
 class TestRedisCache:
     """Test Redis cache functionality"""
@@ -367,6 +379,11 @@ class TestParallelScanner:
     def parallel_scanner(self):
         """Create parallel scanner instance for testing"""
         return ParallelScanner(max_workers=2)
+
+    @pytest.fixture
+    def parallel_processor(self):
+        """Create parallel processor instance for the process_*/batch_process tests in this class."""
+        return ParallelProcessor(max_workers=2)
 
     def test_scan_files_parallel(self, parallel_scanner):
         """Test parallel file scanning"""
@@ -916,7 +933,8 @@ class TestMLScheduler:
 
         with patch('builtins.open', mock_open(read_data=yaml.dump(mock_config))):
             with patch('src.app.SCHEDULER_AVAILABLE', True):
-                with patch('src.app.AsyncIOScheduler') as mock_scheduler_class:
+                with patch('src.app.AsyncIOScheduler') as mock_scheduler_class, \
+                     patch('src.app.CronTrigger'):  # avoid real tzlocal lookup (machine tz config may conflict)
                     mock_scheduler = Mock()
                     mock_scheduler_class.return_value = mock_scheduler
 
